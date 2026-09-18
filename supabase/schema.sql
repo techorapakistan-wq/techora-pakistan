@@ -57,16 +57,37 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.reviews enable row level security;
 
+drop policy if exists "profiles own or admin" on public.profiles;
 create policy "profiles own or admin" on public.profiles for select using (id=auth.uid() or public.is_admin());
+
+drop policy if exists "products public read" on public.products;
 create policy "products public read" on public.products for select using (is_active=true or public.is_admin());
+
+drop policy if exists "products admin write" on public.products;
 create policy "products admin write" on public.products for all using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "orders own or admin read" on public.orders;
 create policy "orders own or admin read" on public.orders for select using (user_id=auth.uid() or public.is_admin());
+
+drop policy if exists "orders customer create" on public.orders;
 create policy "orders customer create" on public.orders for insert with check (user_id=auth.uid());
+
+drop policy if exists "orders admin update" on public.orders;
 create policy "orders admin update" on public.orders for update using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "items own or admin read" on public.order_items;
 create policy "items own or admin read" on public.order_items for select using (exists(select 1 from public.orders where orders.id=order_items.order_id and (orders.user_id=auth.uid() or public.is_admin())));
+
+drop policy if exists "items customer create" on public.order_items;
 create policy "items customer create" on public.order_items for insert with check (exists(select 1 from public.orders where orders.id=order_items.order_id and orders.user_id=auth.uid()));
+
+drop policy if exists "reviews public read" on public.reviews;
 create policy "reviews public read" on public.reviews for select using (is_visible=true or user_id=auth.uid() or public.is_admin());
+
+drop policy if exists "reviews customer create" on public.reviews;
 create policy "reviews customer create" on public.reviews for insert with check (user_id=auth.uid());
+
+drop policy if exists "reviews admin delete" on public.reviews;
 create policy "reviews admin delete" on public.reviews for delete using (public.is_admin());
 
 -- After your own first Google login, run once with your own email:

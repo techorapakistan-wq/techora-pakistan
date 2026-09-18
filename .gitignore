@@ -25,3 +25,5 @@ dist-ssr
 .originkit/
 
 .env
+.vercel
+.env*
