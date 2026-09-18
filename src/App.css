@@ -106,3 +106,87 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 }
 
 .admin-field{display:grid;gap:6px;color:#c6d4e4;font-size:12px}.admin-field input,.admin-field textarea{width:100%}.admin-field.full{grid-column:1/-1}
+/* ─── Auth form input fix: dark text on light background ─── */
+.magic-link-form input {
+  color: #071b37 !important;
+  background: #fff !important;
+  border: 1.5px solid #c2d4e7;
+}
+.magic-link-form input:focus-visible {
+  outline: 3px solid #087cff;
+  outline-offset: 2px;
+  border-color: #087cff;
+}
+.magic-link-form input::placeholder { color: #94a3b8; }
+
+/* ─── Reviews action row ─── */
+.reviews-action-row { margin: 0 0 38px; }
+
+/* ─── Review Modal ─── */
+.review-modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(4, 20, 45, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid; place-items: center; padding: 18px;
+}
+.review-modal {
+  background: #0e1424; color: #f8fafc;
+  width: min(540px, 100%);
+  padding: clamp(28px, 5vw, 52px);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 28px 80px rgba(0,0,0,.55);
+  position: relative;
+}
+.review-modal .eyebrow { color: #83bdf8; }
+.review-modal h2 { font: 500 clamp(34px, 4vw, 48px)/.95 var(--serif); letter-spacing: -.04em; margin: 8px 0 24px; }
+.review-modal h2 em { font-weight: 400; }
+.review-modal-close {
+  position: absolute; right: 16px; top: 16px;
+  width: 34px; height: 34px;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 50%;
+  color: #f8fafc; font-size: 16px;
+  display: grid; place-items: center;
+  background: transparent;
+}
+.review-modal-close:hover { background: rgba(255,255,255,.1); }
+.review-modal-form {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.review-modal-form label {
+  display: flex; flex-direction: column; gap: 7px;
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #b8c8da;
+}
+.review-modal-form input,
+.review-modal-form textarea {
+  background: #071a35 !important;
+  border: 1px solid rgba(255,255,255,.18);
+  padding: 12px; color: #f8fafc !important;
+  font: inherit; resize: vertical;
+}
+.review-modal-form input::placeholder,
+.review-modal-form textarea::placeholder { color: #5b6c84; }
+.review-modal-form input:focus-visible,
+.review-modal-form textarea:focus-visible {
+  outline: 2px solid #087cff; outline-offset: 2px;
+}
+.review-modal-form .button { align-self: flex-start; margin-top: 6px; }
+
+/* ─── Star Picker ─── */
+.star-picker { display: flex; gap: 5px; }
+.star-picker .star {
+  background: transparent; border: none;
+  font-size: 28px; color: #3a4f6a;
+  padding: 0; line-height: 1; cursor: pointer;
+  transition: color .15s, transform .1s;
+}
+.star-picker .star.active { color: #f59e0b; }
+.star-picker .star:hover { transform: scale(1.2); }
+
+/* ─── Reviews empty state ─── */
+.reviews-empty {
+  padding: 48px 0; text-align: center; color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+
+/* ─── Admin review table: show stars ─── */
+.review-star-display { color: #f59e0b; font-size: 15px; letter-spacing: 2px; }
