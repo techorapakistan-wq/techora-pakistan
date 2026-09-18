@@ -1,0 +1,9 @@
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
+const initial={easypaisa_number:"",easypaisa_name:"",jazzcash_number:"",jazzcash_name:"",bank_name:"",bank_account:"",bank_account_name:""};
+export default function PaymentSettingsAdmin({ notice }) {
+ const [form,setForm]=useState(initial);
+ useEffect(()=>{supabase.from("store_settings").select("*").eq("id",true).single().then(({data})=>data&&setForm(data))},[]);
+ const save=async e=>{e.preventDefault();const {error}=await supabase.from("store_settings").update({...form,id:true,updated_at:new Date().toISOString()}).eq("id",true);notice(error?.message||"Payment settings saved.");};
+ return <form className="admin-product-form payment-settings" onSubmit={save}><h2>Advance payment details</h2><p>Customers see these details at checkout. They stay pending until you approve payment.</p><input required placeholder="EasyPaisa number" value={form.easypaisa_number} onChange={e=>setForm({...form,easypaisa_number:e.target.value})}/><input required placeholder="EasyPaisa account name" value={form.easypaisa_name} onChange={e=>setForm({...form,easypaisa_name:e.target.value})}/><input required placeholder="JazzCash number" value={form.jazzcash_number} onChange={e=>setForm({...form,jazzcash_number:e.target.value})}/><input required placeholder="JazzCash account name" value={form.jazzcash_name} onChange={e=>setForm({...form,jazzcash_name:e.target.value})}/><input required placeholder="Bank name" value={form.bank_name} onChange={e=>setForm({...form,bank_name:e.target.value})}/><input required placeholder="Bank / debit card account number" value={form.bank_account} onChange={e=>setForm({...form,bank_account:e.target.value})}/><input required placeholder="Account holder name" value={form.bank_account_name} onChange={e=>setForm({...form,bank_account_name:e.target.value})}/><button className="button button-ink">Save payment details</button></form>;
+}

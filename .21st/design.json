@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "project": {
+    "name": "my-react-app",
+    "productType": null,
+    "stack": [
+      "react",
+      "vite"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "src/index.css",
+      "src/app.css"
+    ],
+    "components": [],
+    "assets": [
+      "src/assets"
+    ],
+    "instructions": []
+  },
+  "design": {
+    "colorMode": "light",
+    "colors": {
+      "--border-subtle": {
+        "value": "rgba(255, 255, 255, 0.08)",
+        "source": "src/index.css"
+      },
+      "--border-medium": {
+        "value": "rgba(255, 255, 255, 0.14)",
+        "source": "src/index.css"
+      },
+      "--border-accent": {
+        "value": "rgba(56, 189, 248, 0.35)",
+        "source": "src/index.css"
+      },
+      "--text-primary": {
+        "value": "#f8fafc",
+        "source": "src/index.css"
+      },
+      "--text-secondary": {
+        "value": "#cbd5e1",
+        "source": "src/index.css"
+      },
+      "--text-muted": {
+        "value": "#94a3b8",
+        "source": "src/index.css"
+      },
+      "--accent-blue": {
+        "value": "#2563eb",
+        "source": "src/index.css"
+      },
+      "--accent-blue-hover": {
+        "value": "#1d4ed8",
+        "source": "src/index.css"
+      },
+      "--accent-cyan": {
+        "value": "#06b6d4",
+        "source": "src/index.css"
+      },
+      "--accent-cyan-light": {
+        "value": "#38bdf8",
+        "source": "src/index.css"
+      },
+      "--accent-emerald": {
+        "value": "#10b981",
+        "source": "src/index.css"
+      },
+      "--accent-rose": {
+        "value": "#f43f5e",
+        "source": "src/index.css"
+      },
+      "--accent-amber": {
+        "value": "#f59e0b",
+        "source": "src/index.css"
+      }
+    },
+    "typography": {
+      "--text-dim": {
+        "value": "#64748b",
+        "source": "src/index.css"
+      },
+      "--font-sans": {
+        "value": "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "source": "src/index.css"
+      }
+    },
+    "spacing": {},
+    "radius": {
+      "--radius-sm": {
+        "value": "8px",
+        "source": "src/index.css"
+      },
+      "--radius-md": {
+        "value": "12px",
+        "source": "src/index.css"
+      },
+      "--radius-lg": {
+        "value": "18px",
+        "source": "src/index.css"
+      },
+      "--radius-xl": {
+        "value": "24px",
+        "source": "src/index.css"
+      },
+      "--radius-full": {
+        "value": "9999px",
+        "source": "src/index.css"
+      }
+    },
+    "shadows": {
+      "--shadow-sm": {
+        "value": "0 2px 8px rgba(0, 0, 0, 0.25)",
+        "source": "src/index.css"
+      },
+      "--shadow-md": {
+        "value": "0 8px 24px -4px rgba(0, 0, 0, 0.4)",
+        "source": "src/index.css"
+      },
+      "--shadow-lg": {
+        "value": "0 16px 40px -8px rgba(0, 0, 0, 0.55)",
+        "source": "src/index.css"
+      },
+      "--shadow-glow": {
+        "value": "0 0 25px rgba(6, 182, 212, 0.25)",
+        "source": "src/index.css"
+      }
+    },
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [],
+    "preferredPrimitives": [],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    {
+      "decision": "Customer storefront uses separate Home, Shop, Product Detail, Cart, Wishlist, Orders and Story browser paths. Product detail imagery must use contain so the full product stays visible. Floating WhatsApp remains icon-only on desktop and mobile.",
+      "source": "User direction, 2026-09-17"
+    },
+    {
+      "decision": "Cart checkout presents a complete order summary, then gathers delivery and advance-payment details for all bag items in one pending-payment order. Footer social controls use compact branded circular states: Facebook blue, Instagram red, WhatsApp green, and TikTok contrast.",
+      "source": "User direction, 2026-09-18"
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "design.colorMode:light",
+      "source": "src/index.css, src/app.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "src/app.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "src/index.css"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:vite",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-09-17T12:17:19.062Z"
+}
