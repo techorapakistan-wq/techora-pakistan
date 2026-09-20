@@ -215,3 +215,7 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 
 /* Keep supplied hero artwork crisp and fully legible. */
 .hero-carousel .hero-slide-bg{filter:none!important;backdrop-filter:none!important}.hero-carousel .hero-shade{background:linear-gradient(180deg,rgba(0,8,22,.10) 0%,rgba(0,8,22,.22) 48%,rgba(0,8,22,.74) 100%)!important}
+
+/* Navbar remains visible while the entire storefront scrolls. */
+.nav-wrap{position:fixed!important;top:0!important;left:0;right:0;width:100%;z-index:180}.topline{margin-top:78px}
+@media(max-width:900px){.topline{margin-top:78px}}
