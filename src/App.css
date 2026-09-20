@@ -212,3 +212,6 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 .hero-carousel{align-items:flex-end!important;padding-bottom:clamp(78px,11vh,126px)!important}
 .hero-premium-copy{margin-bottom:0}
 @media(max-width:560px){.hero-carousel{padding-bottom:86px!important}}
+
+/* Keep supplied hero artwork crisp and fully legible. */
+.hero-carousel .hero-slide-bg{filter:none!important;backdrop-filter:none!important}.hero-carousel .hero-shade{background:linear-gradient(180deg,rgba(0,8,22,.10) 0%,rgba(0,8,22,.22) 48%,rgba(0,8,22,.74) 100%)!important}
