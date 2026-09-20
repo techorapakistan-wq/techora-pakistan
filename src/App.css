@@ -223,3 +223,14 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 /* Keep the shipping marquee above the fixed navigation. */
 .site-shell{padding-top:114px}.topline{position:fixed!important;top:0;left:0;right:0;margin-top:0!important;z-index:190}.nav-wrap{top:36px!important}
 @media(max-width:560px){.site-shell{padding-top:112px}.nav-wrap{top:34px!important}}
+
+/* Mobile hero: reserve clear space for the branded artwork before the copy begins. */
+@media(max-width:560px){
+  .hero-carousel{min-height:760px!important;padding:0 18px 78px!important;align-items:flex-end!important}
+  .hero-premium-copy{max-width:100%;padding:0 8px!important}
+  .hero-premium-copy .eyebrow{font-size:9px;margin-bottom:9px}
+  .hero-premium-copy h1{font-size:clamp(39px,11.5vw,49px)!important;line-height:.96}
+  .hero-premium-copy .hero-text{font-size:14px;line-height:1.45;margin:14px auto 18px;max-width:335px}
+  .hero-premium-copy .hero-actions{gap:13px}.hero-premium-copy .button{min-height:44px;padding:0 14px;font-size:10px}
+  .hero-slide-dots{bottom:19px}.nav-wrap .wordmark img{width:112px!important;height:66px!important;object-fit:contain}
+}
