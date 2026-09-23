@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import creator from "../assets/hero-creator.jpg";
-import studio from "../assets/hero-studio.jpg";
-import gaming from "../assets/hero-gaming.jpg";
+const creator = "https://media.binglee.com.au/4/3/5/a/435a2b00796d3f3667b309ab7b4a38d271a0e779_Sony_WHCH520P_Headphones_Banner_1.jpg";
+const studio = creator;
+const gaming = creator;
 
 const slides = [
   { image: creator, eyebrow: "PREMIUM TECH · PAKISTAN", title: <>The tech you<br/><em>actually want.</em></>, copy: "Creator essentials, audio and everyday gadgets chosen to perform beautifully.", label: "Shop creator gear" },
