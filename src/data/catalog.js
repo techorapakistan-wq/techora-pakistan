@@ -1,8 +1,8 @@
-const driveImage = (id) => `https://lh3.googleusercontent.com/d/${id}=w1400`;
+﻿const driveImage = (id) => `https://lh3.googleusercontent.com/d/${id}=w1400`;
 
 export const fallbackProducts = [
   {
-    id: "monster-airbuds",
+    id: "1e1dff51-a024-49e1-b7a9-5e3f517d8d79",
     name: "Monster Wireless Airbuds",
     category: "Airbuds",
     price: 8500,
@@ -28,7 +28,7 @@ export const fallbackProducts = [
     description: "Monster true wireless airbuds with Bluetooth 5.4, low-latency gaming mode and up to 24 hours combined battery life.",
   },
   {
-    id: "garmin-quickfit-strap",
+    id: "cc399cda-13c3-4daa-a049-c08050fd5990",
     name: "Garmin QuickFit Watch Strap",
     category: "Watch Accessories",
     price: 3320,
@@ -60,7 +60,7 @@ export const fallbackProducts = [
     description: "Soft silicone QuickFit replacement strap for compatible Garmin watches. Choose 22 mm or 26 mm sizing and your preferred colour.",
   },
   {
-    id: "geneva-old-money-watch",
+    id: "4996e021-35f5-4692-a68a-63d4ae1c5589",
     name: "Geneva Luxury Old Money Watch",
     category: "Luxury Watches",
     price: 4500,
