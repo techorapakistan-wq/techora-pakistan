@@ -14,7 +14,10 @@ create table if not exists public.products (
   price numeric(12,2) not null check (price >= 0),
   discount numeric(5,2) not null default 0 check (discount between 0 and 100),
   stock integer not null default 0 check (stock >= 0),
-  image_url text not null, is_active boolean not null default true,
+  image_url text not null,
+  gallery jsonb not null default '[]'::jsonb,
+  colors jsonb not null default '[]'::jsonb,
+  is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
 create table if not exists public.orders (
