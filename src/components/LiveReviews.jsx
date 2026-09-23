@@ -34,11 +34,11 @@ export default function LiveReviews({ session, go }) {
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Load reviews from Supabase and LocalStorage (NO fake reviews)
+  // Load reviews from Supabase and LocalStorage (Strictly NO fake reviews)
   const loadReviews = async () => {
     let combined = [];
 
-    // 1. Load from Supabase if configured
+    // 1. Fetch live database reviews from Supabase
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -57,24 +57,23 @@ export default function LiveReviews({ session, go }) {
           }));
         }
       } catch (err) {
-        console.warn("Supabase review fetch notice:", err);
+        console.warn("Supabase reviews load notice:", err);
       }
     }
 
-    // 2. Load locally submitted customer reviews
+    // 2. Load locally stored customer reviews
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (stored) {
         const localList = JSON.parse(stored);
         if (Array.isArray(localList)) {
-          // Merge avoiding duplicate IDs
           const existingIds = new Set(combined.map((c) => c.id));
           const uniqueLocal = localList.filter((l) => !existingIds.has(l.id));
           combined = [...uniqueLocal, ...combined];
         }
       }
     } catch (e) {
-      console.warn("Local reviews load notice:", e);
+      console.warn("Local storage read notice:", e);
     }
 
     setReviews(combined);
@@ -87,7 +86,7 @@ export default function LiveReviews({ session, go }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !comment.trim()) {
-      setStatus("Please enter both your name and review comment.");
+      setStatus("Please provide both your name and review comments.");
       return;
     }
 
@@ -102,17 +101,17 @@ export default function LiveReviews({ session, go }) {
       created_at: new Date().toISOString(),
     };
 
-    // 1. Save to LocalStorage immediately so it always persists
+    // Save to local storage immediately so it persists and displays
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
       const list = stored ? JSON.parse(stored) : [];
       list.unshift(newReview);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
     } catch (err) {
-      console.warn("Local storage save error:", err);
+      console.warn("Local storage write notice:", err);
     }
 
-    // 2. Try inserting to Supabase if session exists or guest insert is allowed
+    // Attempt to persist to Supabase if session exists
     if (supabase && isSupabaseConfigured) {
       try {
         if (session?.user?.id) {
@@ -130,7 +129,7 @@ export default function LiveReviews({ session, go }) {
     }
 
     setSubmitting(false);
-    setStatus("Shukriya! Aapka review post ho gaya hai.");
+    setStatus("Thank you! Your review has been submitted and published.");
     setComment("");
     setRating(5);
     setFormOpen(false);
@@ -147,7 +146,7 @@ export default function LiveReviews({ session, go }) {
         <p>100% genuine feedback written directly by Techora customers.</p>
       </div>
 
-      {/* Write a Review Button */}
+      {/* Action Bar with Write Review button */}
       <div className="reviews-action-bar">
         <button
           type="button"
@@ -157,14 +156,14 @@ export default function LiveReviews({ session, go }) {
             setFormOpen(true);
           }}
         >
-          ✍️ Write a Customer Review
+          ✍️ Write a Review
         </button>
         <span className="reviews-count-badge">
           {reviews.length} {reviews.length === 1 ? "Review" : "Reviews"} Published
         </span>
       </div>
 
-      {/* Review Form Modal */}
+      {/* Review Modal Form */}
       {formOpen && (
         <div
           className="review-modal-overlay"
@@ -181,19 +180,19 @@ export default function LiveReviews({ session, go }) {
             >
               ✕
             </button>
-            <p className="eyebrow">SHARE YOUR FEEDBACK</p>
+            <p className="eyebrow">SHARE YOUR EXPERIENCE</p>
             <h2>Write a <em>Review</em></h2>
             <p className="review-modal-intro">
-              Aapka honest experience hamare liye aur doosre buyers ke liye bohot zaroori hai.
+              Your honest review helps our community shop with complete confidence.
             </p>
 
             <form onSubmit={handleSubmit} className="review-modal-form">
               <label>
-                <span>Aapka Naam (Your Name)</span>
+                <span>Full Name</span>
                 <input
                   required
                   type="text"
-                  placeholder="Jaise: Muhammad Ali"
+                  placeholder="e.g. Hamdan Amir"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
@@ -201,16 +200,16 @@ export default function LiveReviews({ session, go }) {
               </label>
 
               <label>
-                <span>Kitne Stars Dena Chahte Hain?</span>
+                <span>Star Rating</span>
                 <StarPicker value={rating} onChange={setRating} />
               </label>
 
               <label>
-                <span>Aapka Comment / Review</span>
+                <span>Your Review / Comments</span>
                 <textarea
                   required
                   rows="4"
-                  placeholder="Product ki quality, delivery aur service kesi lagi? Detail me likhein..."
+                  placeholder="Share details about sound quality, build, packaging, or delivery..."
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
@@ -235,18 +234,18 @@ export default function LiveReviews({ session, go }) {
         </div>
       )}
 
-      {/* Reviews List */}
+      {/* Review List */}
       {reviews.length === 0 ? (
         <div className="reviews-empty-box">
           <div className="empty-icon">⭐</div>
-          <h3>Abhi tak koi review nahi aaya</h3>
-          <p>Aap pehle customer banein jo Techora par apna experience share karein!</p>
+          <h3>No customer reviews yet</h3>
+          <p>Be the first customer to share your experience with Techora Pakistan!</p>
           <button
             type="button"
             className="button button-ink"
             onClick={() => setFormOpen(true)}
           >
-            Pehla Review Likhein
+            Write the First Review
           </button>
         </div>
       ) : (
