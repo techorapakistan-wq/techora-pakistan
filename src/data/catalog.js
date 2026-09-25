@@ -1,4 +1,4 @@
-﻿const driveImage = (id) => `https://lh3.googleusercontent.com/d/${id}=w1400`;
+const driveImage = (id) => `https://lh3.googleusercontent.com/d/${id}=w1400`;
 
 export const fallbackProducts = [
   {
@@ -81,4 +81,27 @@ export const fallbackProducts = [
     ],
     description: "A polished Geneva statement watch with a timeless black dial, date display and old-money inspired metal bracelet.",
   },
+  {
+    id: "e8b23c91-4475-4d78-b198-5c4d0a1b2e3f",
+    name: "CHOICE Electric Coffee Mug & Desk Warmer Set",
+    category: "Smart Gadgets",
+    price: 2800,
+    stock: 25,
+    discount: 0,
+    image: "/products/mug-warmer/mug-1.png",
+    gallery: [
+      "/products/mug-warmer/mug-1.png",
+      "/products/mug-warmer/mug-2.png",
+      "/products/mug-warmer/mug-3.png",
+      "/products/mug-warmer/mug-4.png",
+    ],
+    colors: [
+      { name: "Emerald Green", hex: "#1b4332", image: "/products/mug-warmer/mug-1.png" },
+      { name: "Pastel Pink", hex: "#f4b6c2", image: "/products/mug-warmer/mug-4.png" },
+      { name: "Classic White", hex: "#f8fafc", image: "/products/mug-warmer/mug-2.png" },
+      { name: "Random Assorted", hex: "#334155", image: "/products/mug-warmer/mug-2.png" },
+    ],
+    description: "CHOICE Coffee Mug-Warmer, Electric Coffee Cup Warmer for Desk with automatic on/off to keep temperature up to 104-122°F / 40-50°C. Includes ceramic mug, cover, and golden spoon. 5 Days Warranty • Return within 5 days with refund • WhatsApp order 0322-9701332.",
+  },
 ];
+
