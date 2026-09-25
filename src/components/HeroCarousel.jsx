@@ -1,13 +1,34 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
-const creator = "https://media.binglee.com.au/4/3/5/a/435a2b00796d3f3667b309ab7b4a38d271a0e779_Sony_WHCH520P_Headphones_Banner_1.jpg";
-const studio = creator;
-const gaming = creator;
-
 const slides = [
-  { image: creator, eyebrow: "PREMIUM TECH · PAKISTAN", title: <>The tech you<br/><em>actually want.</em></>, copy: "Creator essentials, audio and everyday gadgets chosen to perform beautifully.", label: "Shop creator gear" },
-  { image: studio, eyebrow: "CAPTURE · CREATE · CONNECT", title: <>Built for your<br/><em>next big idea.</em></>, copy: "Camera, drone and studio essentials for every kind of creator.", label: "Explore the collection" },
-  { image: gaming, eyebrow: "GAME WITHOUT LIMITS", title: <>Play with more<br/><em>power.</em></>, copy: "Gaming gear and immersive audio designed for your best sessions.", label: "Shop gaming" },
+  {
+    image: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=2000&q=85",
+    eyebrow: "ACOUSTIC PRECISION · PAKISTAN",
+    title: <>Wireless sound,<br/><em>unfiltered clarity.</em></>,
+    copy: "Monster low-latency audio engineered for seamless music, gaming, and calls all day.",
+    label: "Explore Airbuds"
+  },
+  {
+    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=2000&q=85",
+    eyebrow: "HOROLOGY & ELEGANCE",
+    title: <>Timeless style for<br/><em>modern ambition.</em></>,
+    copy: "Geneva luxury statement watches with classic metal bracelets and polished precision.",
+    label: "Shop Luxury Watches"
+  },
+  {
+    image: "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=2000&q=85",
+    eyebrow: "SMART DESK & LIFESTYLE",
+    title: <>Keep your drinks warm,<br/><em>every single sip.</em></>,
+    copy: "CHOICE Electric Coffee Mug & Desk Warmer set with automatic 55°C temperature control and ceramic mug.",
+    label: "Shop Mug Warmers"
+  },
+  {
+    image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=2000&q=85",
+    eyebrow: "PRECISION ACCESSORIES",
+    title: <>Crafted for durability,<br/><em>built for comfort.</em></>,
+    copy: "Premium silicone QuickFit straps engineered for Garmin sports, outdoor fitness, and daily wear.",
+    label: "Explore Accessories"
+  },
 ];
 
 export default function HeroCarousel({ go }) {

@@ -15,6 +15,7 @@ import HeroCarousel from "./components/HeroCarousel";
 import PaymentInstructions from "./components/PaymentInstructions";
 import ProductMarquee from "./components/ProductMarquee";
 import { fallbackProducts } from "./data/catalog";
+import ProductReviewsBox, { getStoredProductRating } from "./components/ProductReviewsBox";
 
 const money = (number) => `PKR ${Number(number || 0).toLocaleString()}`;
 const originalPrice = (product) => { const discount = Number(product.discount || 0); return discount > 0 ? Math.round(Number(product.price) / (1 - discount / 100)) : Number(product.price); };
@@ -42,6 +43,7 @@ export default function App() {
   useEffect(() => { const onPop = () => setPath(window.location.pathname); addEventListener("popstate", onPop); return () => removeEventListener("popstate", onPop); }, []);
   const go = (url) => { if (url !== window.location.pathname) { window.history.pushState({}, "", url); setPath(url); window.scrollTo({ top: 0, behavior: "smooth" }); } setMenuOpen(false); };
   const notice = (text) => { setToast(text); window.setTimeout(() => setToast(""), 2300); };
+  const updateProductRating = (productId, newRating) => { setProducts(old => old.map(p => p.id === productId ? { ...p, rating: newRating } : p)); };
   const add = (product, event) => { const cartKey = `${product.id}::${product.selectedColor || "default"}`; const item = { ...product, cartKey }; const a = event?.currentTarget?.getBoundingClientRect(), b = cartRef.current?.getBoundingClientRect(); if (a && b && !matchMedia("(prefers-reduced-motion: reduce)").matches) setFlying({ product: item, x:a.left+a.width/2-24, y:a.top+a.height/2-24, dx:b.left+b.width/2-(a.left+a.width/2), dy:b.top+b.height/2-(a.top+a.height/2) }); setCart(old => old.some(entry => entry.cartKey === cartKey) ? old : [...old, item]); notice(`${product.name} added to your bag.`); };
   const toggleWish = (product) => setWishlist(old => old.includes(product.id) ? old.filter(id => id !== product.id) : [...old, product.id]);
   const openProduct = (product) => go(`/product/${product.id}`);
@@ -54,7 +56,7 @@ export default function App() {
     <div className="topline" aria-label="Free shipping on orders over PKR 5,000"><div className="shipping-marquee"><div className="shipping-marquee-track"><span>Free shipping on orders over PKR 5,000</span><span aria-hidden="true">Free shipping on orders over PKR 5,000</span></div></div></div>
     <header className="nav-wrap"><button className="mobile-menu-button mobile-only" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Icon name="menu"/></button><button className="mobile-account-button mobile-only" onClick={() => go(session ? "/orders" : "/login")} aria-label={session ? "Open my orders" : "Sign in"}><Icon name="user"/></button><button className="wordmark" onClick={() => go("/")} aria-label="Techora home"><img src={techoraLogo} alt="Techora Gadgets"/></button><nav className="desktop-nav">{nav.map(([label,url]) => <button key={label} onClick={() => go(url)} className={path === url || (url === "/shop" && path.startsWith("/product/")) ? "nav-active" : ""}>{label}</button>)}</nav><div className="nav-tools"><button className="icon-button desktop-search" aria-label="Search"><Icon name="search"/></button><button className="icon-button" onClick={() => go("/wishlist")} aria-label="Wishlist"><Icon name="heart"/><b>{wishlist.length}</b></button><button ref={cartRef} className="icon-button" onClick={() => go("/cart")} aria-label="Shopping bag"><Icon name="bag"/><b>{cart.length}</b></button></div></header>
     <AnimatePresence>{menuOpen && <motion.div className="mobile-menu" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><motion.div className="mobile-menu-panel" initial={{x:-28}} animate={{x:0}} exit={{x:-28}}><button className="icon-button menu-close" onClick={() => setMenuOpen(false)}><Icon name="close"/></button>{nav.map(([label,url]) => <button key={label} onClick={() => go(url)}>{label}</button>)}<button onClick={() => go("/orders")}>My orders</button></motion.div></motion.div>}</AnimatePresence>
-    {path === "/" && <Home go={go} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session}/>} {path === "/shop" && <Shop products={filtered} filter={filter} setFilter={setFilter} limit={limit} setLimit={setLimit} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
+    {path === "/" && <Home go={go} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session}/>} {path === "/shop" && <Shop products={filtered} filter={filter} setFilter={setFilter} limit={limit} setLimit={setLimit} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session} onRatingUpdate={updateProductRating}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
     <Footer go={go}/><a className="floating-whatsapp" href="https://wa.me/923229701332?text=Hi%20Techora%2C%20I%20need%20help%20with%20a%20product." target="_blank" rel="noreferrer" aria-label="Chat with Techora on WhatsApp"><Icon name="whatsapp"/></a>
     <AnimatePresence>{flying && <motion.img className="fly-to-cart" src={flying.product.image} alt="" initial={{opacity:1,scale:1,x:0,y:0}} animate={{opacity:.15,scale:.2,x:flying.dx,y:flying.dy}} transition={{duration:.55}} style={{left:flying.x,top:flying.y}} onAnimationComplete={() => setFlying(null)}/>}</AnimatePresence><AnimatePresence>{toast && <motion.div className="toast" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:10}}>{toast}</motion.div>}</AnimatePresence>
   </div>;
@@ -65,10 +67,67 @@ function Home({go,openProduct,products,add,wish,toggleWish,session}) {
   return <main><HeroCarousel go={go}/>
     <section className="home-trustbar" aria-label="Why shop with Techora">{[["⚡","Fast dispatch","Across Pakistan"],["✓","Quality checked","Before it ships"],["🔒","Secure payment","Multiple options"],["◌","WhatsApp support","Here to help"]].map(([icon,title,copy])=><div key={title}><b>{icon}</b><span><strong>{title}</strong><small>{copy}</small></span></div>)}</section>
     <ProductMarquee products={products} openProduct={openProduct}/>
+    <section className="section curated-banner-split" aria-label="Curated technology highlights">
+      <div className="curated-banner-card" onClick={()=>go("/shop")}>
+        <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=85" alt="Acoustic Audio & Earbuds"/>
+        <div className="curated-card-overlay"/>
+        <div className="curated-card-content">
+          <p className="eyebrow">ACOUSTIC SERIES</p>
+          <h3>High-Fidelity Audio & Gaming</h3>
+          <p>Immersive wireless sound with deep bass and ultra-low latency.</p>
+          <span className="text-link">Explore audio <Icon name="arrow"/></span>
+        </div>
+      </div>
+      <div className="curated-banner-card" onClick={()=>go("/shop")}>
+        <img src="https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=1200&q=85" alt="Smart Desk Gadgets & Coffee Mug Warmers"/>
+        <div className="curated-card-overlay"/>
+        <div className="curated-card-content">
+          <p className="eyebrow">SMART LIFESTYLE</p>
+          <h3>Desk Warmers & Everyday Gadgets</h3>
+          <p>Constant 55°C warmth for your morning coffee and all-day focus.</p>
+          <span className="text-link">Explore gadgets <Icon name="arrow"/></span>
+        </div>
+      </div>
+    </section>
     <section className="section premium-categories"><div className="shop-heading"><div><p className="eyebrow">SHOP BY CATEGORY</p><h2>Find your next <em>upgrade.</em></h2></div><button className="text-link" onClick={()=>go("/shop")}>See all products <Icon name="arrow"/></button></div><div className="premium-category-grid">{categories.map(([name,copy,image])=><button key={name} onClick={()=>go("/shop")}><img src={image} alt=""/><span/><div><p>{copy}</p><h3>{name}</h3><em>Explore <Icon name="arrow"/></em></div></button>)}</div></section>
     <ProductShelf eyebrow="BEST SELLERS" title={<>The Techora <em>favourites.</em></>} products={best} go={go} openProduct={openProduct} add={add} wish={wish} toggleWish={toggleWish}/>
     <section className="deal-banner"><div><p className="eyebrow">LIMITED-TIME SAVINGS</p><h2>Today&apos;s <em>Tech Deals.</em></h2><p>Premium upgrades with prices worth acting on. New offers arrive regularly.</p><button className="button button-ink" onClick={()=>go("/shop")}>Shop special offers <Icon name="arrow"/></button></div><div className="deal-stat"><strong>UP TO<br/><em>20%</em></strong><span>OFF SELECTED TECH</span></div></section>
     <ProductShelf eyebrow="NEW ARRIVALS" title={<>Fresh tech, <em>just in.</em></>} products={fresh} go={go} openProduct={openProduct} add={add} wish={wish} toggleWish={toggleWish}/>
+    <section className="section lifestyle-lookbook" aria-label="Techora Life Lookbook">
+      <div className="shop-heading">
+        <div>
+          <p className="eyebrow">CONSIDERED AESTHETIC</p>
+          <h2>Designed to elevate <em>everyday life.</em></h2>
+        </div>
+        <button className="text-link" onClick={()=>go("/shop")}>Shop all products <Icon name="arrow"/></button>
+      </div>
+      <div className="lookbook-grid">
+        <div className="lookbook-item" onClick={()=>go("/shop")}>
+          <img src="https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1000&q=85" alt="Geneva Luxury Watch Craftsmanship"/>
+          <div className="lookbook-item-content">
+            <span className="lookbook-tag">HOROLOGY</span>
+            <h4>Refined Timepieces</h4>
+            <p>Polished statement watches inspired by old-money luxury.</p>
+          </div>
+        </div>
+        <div className="lookbook-item" onClick={()=>go("/shop")}>
+          <img src="https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=1000&q=85" alt="Electric Mug Warmer Desk Ritual"/>
+          <div className="lookbook-item-content">
+            <span className="lookbook-tag">DESK ESSENTIALS</span>
+            <h4>Constant Warmth</h4>
+            <p>Maintain your ideal drink temperature anytime at your desk.</p>
+          </div>
+        </div>
+        <div className="lookbook-item" onClick={()=>go("/shop")}>
+          <img src="https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?auto=format&fit=crop&w=1000&q=85" alt="Garmin QuickFit Silicone Straps"/>
+          <div className="lookbook-item-content">
+            <span className="lookbook-tag">PERFORMANCE</span>
+            <h4>Durable Comfort</h4>
+            <p>QuickFit silicone straps engineered for workout and adventure.</p>
+          </div>
+        </div>
+      </div>
+    </section>
     <section className="section service-section"><div className="section-intro"><p className="eyebrow">WHY SHOP WITH TECHORA</p><h2>Technology backed by <em>real support.</em></h2></div><div className="service-grid">{[["Nationwide delivery","Fast, careful delivery to cities across Pakistan."],["Secure payments","EasyPaisa, JazzCash and bank transfer options."],["Quality products","Useful tech selected for genuine everyday value."],["Easy help","Quick assistance on WhatsApp before and after your order."]].map(([t,c])=><div className="service-card" key={t}><h3>{t}</h3><p>{c}</p></div>)}</div></section>
     <LiveReviews session={session} go={go} embedded/>
   </main>
@@ -76,9 +135,11 @@ function Home({go,openProduct,products,add,wish,toggleWish,session}) {
 function ProductShelf({eyebrow,title,products,go,openProduct,add,wish,toggleWish}) { return <section className="section home-products"><div className="shop-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="text-link" onClick={() => go("/shop")}>View all <Icon name="arrow"/></button></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section> }function Shop({products,filter,setFilter,limit,setLimit,sort,setSort,openProduct,add,wish,toggleWish}) { const cats=["All",...new Set(products.map(p=>p.category).filter(Boolean))]; return <main className="page-shell"><div className="breadcrumb">Home <span>/</span> Shop</div><div className="page-heading"><div><p className="eyebrow">SHOP TECHORA</p><h1>The complete <em>edit.</em></h1></div><p>Devices and accessories selected for everyday life.</p></div><div className="shop-layout"><aside className="shop-sidebar"><div className="filter-title"><Icon name="sliders"/> Filters</div><p className="filter-label">Category</p>{cats.map(cat=><button className={filter===cat?"active":""} onClick={()=>setFilter(cat)} key={cat}>{cat}</button>)}<p className="filter-label range-label">Price range <strong>{money(limit)}</strong></p><input type="range" min="2000" max="15000" step="500" value={limit} onChange={e=>setLimit(Number(e.target.value))}/></aside><section className="shop-results"><div className="results-top"><span>{products.length} products</span><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option>Featured</option><option>Price: low to high</option><option>Price: high to low</option></select></label></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section></div></main> }
 function ProductCard({product,index,openProduct,add,wished,toggleWish}) {
   const discount=Number(product.discount||0); const badge=product.stock===0?"SOLD OUT":discount>0?`${discount}% OFF`:index<2?"BEST SELLER":"NEW";
-  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}><button className="product-image" onClick={()=>openProduct(product)} aria-label={`View ${product.name}`}><img src={product.image} alt={product.name}/><span className="product-badge">{badge}</span>{product.stock===0&&<span className="unavailable">Product unavailable</span>}</button><button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button><div className="product-info"><p>{product.category}</p><button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button><div className="product-rating-row"><span className="rating-stars" aria-label="Product rating">{Number(product.rating)>0 ? "★".repeat(Math.round(Number(product.rating))) + "☆".repeat(5-Math.round(Number(product.rating))) : "☆☆☆☆☆"}</span><small>{Number(product.rating)>0 ? `${product.rating}/5` : "Not yet rated"}</small></div><div>{discount > 0 ? <span className="discount-price"><del>{money(originalPrice(product))}</del><strong>{money(product.price)}</strong><em>{discount}% off</em></span> : <strong>{money(product.price)}</strong>}<button disabled={product.stock===0} onClick={e=>add(product,e)} aria-label="Add to bag"><Icon name="bag"/></button></div></div></motion.article>;
+  const currentRating = Number(product.rating || getStoredProductRating(product.id) || 0);
+  const roundedRating = Math.round(currentRating);
+  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}><button className="product-image" onClick={()=>openProduct(product)} aria-label={`View ${product.name}`}><img src={product.image} alt={product.name}/><span className="product-badge">{badge}</span>{product.stock===0&&<span className="unavailable">Product unavailable</span>}</button><button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button><div className="product-info"><p>{product.category}</p><button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button><div className="product-rating-row"><span className="rating-stars" aria-label="Product rating">{currentRating>0 ? "★".repeat(roundedRating) + "☆".repeat(5-roundedRating) : "☆☆☆☆☆"}</span><small>{currentRating>0 ? `${currentRating}/5` : "Not yet rated"}</small></div><div>{discount > 0 ? <span className="discount-price"><del>{money(originalPrice(product))}</del><strong>{money(product.price)}</strong><em>{discount}% off</em></span> : <strong>{money(product.price)}</strong>}<button disabled={product.stock===0} onClick={e=>add(product,e)} aria-label="Add to bag"><Icon name="bag"/></button></div></div></motion.article>;
 }
-function Product({product,add,wished,toggleWish,go,session}) {
+function Product({product,add,wished,toggleWish,go,session,onRatingUpdate}) {
   const gallery = [...new Set([product.image, ...(product.gallery || [])].filter(Boolean))];
   const colors = Array.isArray(product.colors) ? product.colors : [];
   const [currentImage, setCurrentImage] = useState(gallery[0]);
@@ -109,6 +170,7 @@ function Product({product,add,wished,toggleWish,go,session}) {
         <div className="detail-actions"><button className="button button-ink" disabled={product.stock===0} onClick={e=>add(configuredProduct,e)}>Add to cart <Icon name="bag"/></button><button className="button" onClick={()=>toggleWish(product)}>{wished?"Saved to wishlist":"Add to wishlist"} <Icon name="heart"/></button></div>
         <button className="order-now" disabled={product.stock===0} onClick={()=>session ? setOrdering(true) : go("/login")}>Order now <Icon name="arrow"/></button>
         <div className="detail-note"><strong>Delivery:</strong> Nationwide dispatch with tracking updates.<br/><strong>Returns:</strong> Contact us within 7 days for eligible returns.<br/>Free shipping over PKR 5,000 · WhatsApp assistance</div>
+        <ProductReviewsBox product={product} session={session} onRatingUpdate={(newRating) => onRatingUpdate?.(product.id, newRating)}/>
       </div>
     </div>
     <AnimatePresence>{ordering&&<OrderForm items={[configuredProduct]} session={session} close={()=>setOrdering(false)}/>}</AnimatePresence>
@@ -118,7 +180,41 @@ function OrderForm({items,session,close,onComplete}) {
   const [status,setStatus]=useState("");
   const [sending,setSending]=useState(false);
   const total=items.reduce((sum,item)=>sum+Number(item.price)*(Number(item.quantity)||1),0);
-  const submit=async e=>{e.preventDefault();if(!supabase||!session){setStatus("Please sign in before placing your order.");return;}setSending(true);setStatus("");const form=new FormData(e.currentTarget);const payment=form.get("payment");const {data:order,error}=await supabase.from("orders").insert({user_id:session.user.id,customer_name:form.get("name"),phone:form.get("phone"),address:form.get("address"),payment_method:payment,status:"pending_payment",total}).select().single();if(error){setStatus(error.message);setSending(false);return;}const orderItems=items.map(item=>({order_id:order.id,product_id:isUuid(item.id)?item.id:null,product_name:item.name + (item.selectedColor ? " — " + item.selectedColor : ""),unit_price:Number(item.price),quantity:Number(item.quantity)||1}));const {error:itemError}=await supabase.from("order_items").insert(orderItems);if(itemError){setStatus(`Your order could not be completed: ${itemError.message}`);setSending(false);return;}setStatus("Order placed — send your advance payment screenshot on WhatsApp for approval.");setSending(false);onComplete?.();};
+  const submit=async e=>{
+    e.preventDefault();
+    if(!supabase||!session){setStatus("Please sign in before placing your order.");return;}
+    setSending(true);
+    setStatus("");
+    const form=new FormData(e.currentTarget);
+    const payment=form.get("payment");
+    const fullAddress = `${form.get("address")}, ${form.get("city")}`;
+    const {data:order,error}=await supabase.from("orders").insert({
+      user_id:session.user.id,
+      customer_name:form.get("name"),
+      phone:form.get("phone"),
+      address:fullAddress,
+      payment_method:payment,
+      status:"pending_payment",
+      total
+    }).select().single();
+    if(error){setStatus(error.message);setSending(false);return;}
+    const orderItems=items.map(item=>({
+      order_id:order.id,
+      product_id:isUuid(item.id)?item.id:null,
+      product_name:item.name + (item.selectedColor ? " — " + item.selectedColor : ""),
+      unit_price:Number(item.price),
+      quantity:Number(item.quantity)||1
+    }));
+    let {error:itemError}=await supabase.from("order_items").insert(orderItems);
+    if(itemError){
+      const safeItems=orderItems.map(oi=>({ ...oi, product_id: null }));
+      const retry=await supabase.from("order_items").insert(safeItems);
+      if(retry.error){setStatus(`Your order could not be completed: ${retry.error.message}`);setSending(false);return;}
+    }
+    setStatus("Order placed — send your advance payment screenshot on WhatsApp for approval.");
+    setSending(false);
+    onComplete?.();
+  };
   return <motion.div className="detail-layer" role="dialog" aria-modal="true" aria-label="Checkout" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}><motion.form className="checkout-panel" initial={{y:20}} animate={{y:0}} onSubmit={submit}><button type="button" className="icon-button detail-close" onClick={close} aria-label="Close checkout"><Icon name="close"/></button><p className="eyebrow">SECURE CHECKOUT</p><h2>Almost yours.</h2><div className="checkout-order-summary"><div><span>{items.length} {items.length===1?"item":"items"} in this order</span><strong>{money(total)}</strong></div>{items.map(item=><p key={item.id}>{item.name} <span>× {Number(item.quantity)||1}</span><strong>{money(Number(item.price)*(Number(item.quantity)||1))}</strong></p>)}</div><div className="checkout-fields"><label>Full name<input required name="name" autoComplete="name"/></label><label>WhatsApp number<input required name="phone" type="tel" autoComplete="tel"/></label><label>City<input required name="city" autoComplete="address-level2" placeholder="e.g. Lahore"/></label><label className="full-width">Complete delivery address<textarea required name="address" rows="3" autoComplete="street-address"/></label></div><fieldset><legend>Advance payment method</legend><label className="payment-option"><input defaultChecked type="radio" name="payment" value="easypaisa"/> EasyPaisa</label><label className="payment-option"><input type="radio" name="payment" value="jazzcash"/> JazzCash</label><label className="payment-option"><input type="radio" name="payment" value="bank_transfer"/> Meezan Bank debit card / transfer</label></fieldset><PaymentInstructions/><button className="button button-ink submit-order" disabled={sending}>{sending?"Saving order…":"Submit order"} <Icon name="arrow"/></button>{status&&<p className="form-status" role="status">{status}</p>}</motion.form></motion.div>;
 }
 function Cart({cart,go,session,clearCart}) { const [ordering,setOrdering]=useState(false);const total=cart.reduce((sum,item)=>sum+Number(item.price)*(Number(item.quantity)||1),0);return <main className="page-shell simple-page"><p className="eyebrow">SHOPPING BAG</p><h1>Your <em>bag.</em></h1>{cart.length?<div className="cart-checkout-layout"><div className="line-list">{cart.map(p=><div key={p.cartKey || p.id}><img src={p.image} alt=""/><span>{p.name}{p.selectedColor && <small>Colour: {p.selectedColor}</small>}<small>Quantity: {Number(p.quantity)||1}</small></span><strong>{money(Number(p.price)*(Number(p.quantity)||1))}</strong></div>)}</div><aside className="cart-summary"><p className="eyebrow">ORDER SUMMARY</p><div><span>Items ({cart.length})</span><strong>{money(total)}</strong></div><div><span>Delivery</span><strong>Calculated after order</strong></div><div className="cart-total"><span>Total</span><strong>{money(total)}</strong></div><button className="button button-ink" onClick={()=>session?setOrdering(true):go("/login")}>Proceed to checkout <Icon name="arrow"/></button><p>Advance payment is required. Your order stays pending until payment proof is approved.</p></aside></div>:<><p>Your bag is waiting for something special.</p><button className="button button-ink" onClick={()=>go("/shop")}>Shop now <Icon name="arrow"/></button></>}<AnimatePresence>{ordering&&<OrderForm items={cart} session={session} close={()=>setOrdering(false)} onComplete={clearCart}/>}</AnimatePresence></main> }function SimpleList({title,products,openProduct}) { return <main className="page-shell simple-page"><p className="eyebrow">TECHORA</p><h1>{title}</h1>{products.length?<div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={()=>{}} wished toggleWish={()=>{}}/>)}</div>:<p>Nothing saved yet. Explore the collection to find your favourites.</p>}</main> }
