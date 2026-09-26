@@ -71,9 +71,22 @@ export default function AdminDashboard({ session, go }) {
   const updateOrder = async (id, status) => { const { error } = await supabase.from("orders").update({ status }).eq("id", id); setMessage(error?.message || "Order status updated."); if (!error) load(); };
   const deleteOrder = async (id) => {
     if (!window.confirm("Permanently delete this order from the system? This action cannot be undone.")) return;
-    const { error } = await supabase.from("orders").delete().eq("id", id);
-    setMessage(error?.message || "Order deleted successfully.");
-    if (!error) load();
+    setMessage("Deleting order...");
+    // 1. Delete associated order items first (in case cascading delete is restricted)
+    await supabase.from("order_items").delete().eq("order_id", id);
+    // 2. Delete the order itself
+    const { error, count } = await supabase.from("orders").delete().eq("id", id).select();
+    if (error) {
+      setMessage(`Delete failed: ${error.message} (Code: ${error.code || "RLS"}). If RLS policy is missing in Supabase, run the schema update.`);
+    } else {
+      setMessage("Order deleted successfully.");
+      // Optimistically update local state so UI updates immediately
+      setData(prev => ({
+        ...prev,
+        orders: prev.orders.filter(o => o.id !== id)
+      }));
+      load();
+    }
   };
   const openNewProduct = () => { setForm(emptyProduct); setImageFile(null); setFormOpen(true); };
   const editProduct = (product) => { setForm({ ...product, gallery_text: (product.gallery || []).join("\n"), colors_text: (product.colors || []).map((color) => [color.name, color.hex, color.image].filter(Boolean).join("|")).join("\n") }); setImageFile(null); setFormOpen(true); };

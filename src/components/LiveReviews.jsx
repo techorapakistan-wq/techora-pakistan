@@ -50,7 +50,7 @@ export default function LiveReviews({ session, go, embedded = false }) {
         if (!error && Array.isArray(data)) {
           combined = data.map((r) => ({
             id: r.id,
-            name: r.customer_name || r.profiles?.full_name || "Verified Customer",
+            name: r.customer_name || r.profiles?.full_name || "Techora Customer",
             rating: Number(r.rating) || 5,
             message: r.message,
             created_at: r.created_at,
@@ -273,7 +273,6 @@ export default function LiveReviews({ session, go, embedded = false }) {
                   {"★".repeat(rev.rating)}
                   {"☆".repeat(Math.max(0, 5 - rev.rating))}
                 </div>
-                <span className="review-verified-badge">✓ Verified Buyer</span>
               </div>
               <p className="review-comment-text">"{rev.message}"</p>
               <footer>

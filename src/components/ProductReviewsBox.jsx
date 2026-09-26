@@ -196,7 +196,6 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
                 <span className="single-review-stars">
                   {"★".repeat(r.rating || 5)}{"☆".repeat(5 - (r.rating || 5))}
                 </span>
-                <span className="single-review-badge">✓ Verified Customer</span>
               </div>
               <p className="single-review-comment">"{r.message}"</p>
               <div className="single-review-foot">

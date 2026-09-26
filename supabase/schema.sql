@@ -51,6 +51,8 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 create or replace function public.is_admin() returns boolean language sql stable security definer set search_path=public as $$
   select exists(select 1 from public.profiles where id=auth.uid() and role='admin');
 $$;
+grant execute on function public.is_admin() to anon, authenticated, service_role;
+
 create or replace function public.set_admin_role(target_email text) returns void language plpgsql security definer set search_path=public as $$
 begin if not public.is_admin() then raise exception 'Only an admin can grant admin access'; end if; update public.profiles set role='admin' where lower(email)=lower(target_email); if not found then raise exception 'This email has not signed in yet'; end if; end; $$;
 
@@ -78,11 +80,17 @@ create policy "orders customer create" on public.orders for insert with check (u
 drop policy if exists "orders admin update" on public.orders;
 create policy "orders admin update" on public.orders for update using (public.is_admin()) with check (public.is_admin());
 
+drop policy if exists "orders admin delete" on public.orders;
+create policy "orders admin delete" on public.orders for delete using (public.is_admin());
+
 drop policy if exists "items own or admin read" on public.order_items;
 create policy "items own or admin read" on public.order_items for select using (exists(select 1 from public.orders where orders.id=order_items.order_id and (orders.user_id=auth.uid() or public.is_admin())));
 
 drop policy if exists "items customer create" on public.order_items;
 create policy "items customer create" on public.order_items for insert with check (exists(select 1 from public.orders where orders.id=order_items.order_id and orders.user_id=auth.uid()));
+
+drop policy if exists "items admin delete" on public.order_items;
+create policy "items admin delete" on public.order_items for delete using (public.is_admin());
 
 drop policy if exists "reviews public read" on public.reviews;
 create policy "reviews public read" on public.reviews for select using (is_visible=true or user_id=auth.uid() or public.is_admin());
