@@ -38,23 +38,31 @@ export default function LiveReviews({ session, go, embedded = false }) {
   const loadReviews = useCallback(async () => {
     let combined = [];
 
+    let deletedRevIds = new Set();
+    try {
+      const rawDel = localStorage.getItem("techora_admin_deleted_reviews");
+      if (rawDel) deletedRevIds = new Set(JSON.parse(rawDel));
+    } catch (e) {}
+
     // 1. Fetch live database reviews from Supabase
     if (supabase && isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from("reviews")
-          .select("*, profiles(full_name, email)")
+          .select("*")
           .eq("is_visible", true)
           .order("created_at", { ascending: false });
 
         if (!error && Array.isArray(data)) {
-          combined = data.map((r) => ({
-            id: r.id,
-            name: r.customer_name || r.profiles?.full_name || "Techora Customer",
-            rating: Number(r.rating) || 5,
-            message: r.message,
-            created_at: r.created_at,
-          }));
+          combined = data
+            .filter((r) => !deletedRevIds.has(r.id))
+            .map((r) => ({
+              id: r.id,
+              name: r.customer_name || "Techora Customer",
+              rating: Number(r.rating) || 5,
+              message: r.message,
+              created_at: r.created_at,
+            }));
         }
       } catch (err) {
         console.warn("Supabase reviews load notice:", err);
@@ -67,8 +75,9 @@ export default function LiveReviews({ session, go, embedded = false }) {
       if (stored) {
         const localList = JSON.parse(stored);
         if (Array.isArray(localList)) {
+          const filteredLocal = localList.filter((l) => !deletedRevIds.has(l.id));
           const existingIds = new Set(combined.map((c) => c.id));
-          const uniqueLocal = localList.filter((l) => !existingIds.has(l.id));
+          const uniqueLocal = filteredLocal.filter((l) => !existingIds.has(l.id));
           combined = [...uniqueLocal, ...combined];
         }
       }

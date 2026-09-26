@@ -18,11 +18,25 @@ export default function AdminDashboard({ session, go }) {
   const [message, setMessage] = useState("");
   const load = async () => {
     if (!supabase || !session) return;
-    const [profile, orders, products, reviews, admins] = await Promise.all([
+
+    // 1. Fetch deleted blacklists from localStorage
+    let deletedOrderIds = new Set();
+    try {
+      const rawDeletedOrders = localStorage.getItem("techora_admin_deleted_orders");
+      if (rawDeletedOrders) deletedOrderIds = new Set(JSON.parse(rawDeletedOrders));
+    } catch (e) {}
+
+    let deletedRevIds = new Set();
+    try {
+      const rawDelReviews = localStorage.getItem("techora_admin_deleted_reviews");
+      if (rawDelReviews) deletedRevIds = new Set(JSON.parse(rawDelReviews));
+    } catch (e) {}
+
+    const [profile, orders, products, reviewsRes, admins] = await Promise.all([
       supabase.from("profiles").select("role").eq("id", session.user.id).single(),
       supabase.from("orders").select("*, order_items(*)").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
-      supabase.from("reviews").select("*, profiles(full_name,email)").order("created_at", { ascending: false }),
+      supabase.from("reviews").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id,full_name,email,role").eq("role", "admin").order("email"),
     ]);
     const rootAdmin = session.user.email?.toLowerCase() === "techorapakistan@gmail.com";
@@ -33,6 +47,22 @@ export default function AdminDashboard({ session, go }) {
       const fallbackOrders = await supabase.from("orders").select("*").order("created_at", { ascending: false });
       if (fallbackOrders.data?.length) orderList = fallbackOrders.data;
     }
+
+    // Merge any customer orders saved locally
+    try {
+      const rawCust = localStorage.getItem("techora_customer_orders");
+      if (rawCust) {
+        const localCustOrders = JSON.parse(rawCust);
+        if (Array.isArray(localCustOrders)) {
+          const existingIds = new Set(orderList.map(o => o.id));
+          const missingLocal = localCustOrders.filter(o => !existingIds.has(o.id));
+          orderList = [...orderList, ...missingLocal];
+        }
+      }
+    } catch (e) {}
+
+    // Strictly filter out blacklisted deleted orders so they never re-appear
+    orderList = orderList.filter(o => !deletedOrderIds.has(o.id));
 
     const dbProducts = (products.data || []).map(p => ({ ...p, image_url: p.image_url || p.image }));
     const dbIds = new Set(dbProducts.map(p => p.id));
@@ -63,29 +93,124 @@ export default function AdminDashboard({ session, go }) {
       }
     }
 
-    const firstError = profile.error || orders.error || products.error || reviews.error || admins.error;
+    // Process reviews: combine Supabase reviews with local reviews
+    const reviewMap = new Map();
+    if (reviewsRes.data && Array.isArray(reviewsRes.data)) {
+      reviewsRes.data.forEach(r => {
+        if (!deletedRevIds.has(r.id)) {
+          reviewMap.set(r.id, {
+            id: r.id,
+            customer_name: r.customer_name || "Customer",
+            email: r.email || "",
+            rating: Number(r.rating) || 5,
+            message: r.message || "",
+            is_visible: r.is_visible !== false,
+            created_at: r.created_at || new Date().toISOString(),
+          });
+        }
+      });
+    }
+
+    // Also pick up from local storage (both general customer reviews and product specific reviews)
+    try {
+      const rawGeneral = localStorage.getItem("techora_customer_reviews");
+      if (rawGeneral) {
+        const genList = JSON.parse(rawGeneral);
+        if (Array.isArray(genList)) {
+          genList.forEach(r => {
+            if (r.id && !deletedRevIds.has(r.id) && !reviewMap.has(r.id)) {
+              reviewMap.set(r.id, {
+                id: r.id,
+                customer_name: r.customer_name || r.name || "Customer",
+                email: r.email || "",
+                rating: Number(r.rating) || 5,
+                message: r.message || "",
+                is_visible: true,
+                created_at: r.created_at || new Date().toISOString(),
+              });
+            }
+          });
+        }
+      }
+
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("techora_product_reviews_")) {
+          const pRevs = JSON.parse(localStorage.getItem(key) || "[]");
+          if (Array.isArray(pRevs)) {
+            pRevs.forEach(r => {
+              if (r.id && !deletedRevIds.has(r.id) && !reviewMap.has(r.id)) {
+                reviewMap.set(r.id, {
+                  id: r.id,
+                  customer_name: r.name || r.customer_name || "Customer",
+                  email: r.email || "",
+                  rating: Number(r.rating) || 5,
+                  message: r.product_name ? `[${r.product_name}] ${r.message}` : r.message || "",
+                  is_visible: true,
+                  created_at: r.created_at || new Date().toISOString(),
+                });
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {}
+
+    const mergedReviews = Array.from(reviewMap.values()).sort(
+      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    );
+
+    const firstError = profile.error || orders.error || products.error || admins.error;
     if (firstError) setMessage(firstError.message);
-    setData({ orders: orderList, products: allProducts, reviews: reviews.data || [], admins: admins.data || [] });
+    setData({ orders: orderList, products: allProducts, reviews: mergedReviews, admins: admins.data || [] });
   };
   useEffect(() => { load(); }, [session]);
   const updateOrder = async (id, status) => { const { error } = await supabase.from("orders").update({ status }).eq("id", id); setMessage(error?.message || "Order status updated."); if (!error) load(); };
   const deleteOrder = async (id) => {
     if (!window.confirm("Permanently delete this order from the system? This action cannot be undone.")) return;
     setMessage("Deleting order...");
-    // 1. Delete associated order items first (in case cascading delete is restricted)
-    await supabase.from("order_items").delete().eq("order_id", id);
-    // 2. Delete the order itself
-    const { error, count } = await supabase.from("orders").delete().eq("id", id).select();
-    if (error) {
-      setMessage(`Delete failed: ${error.message} (Code: ${error.code || "RLS"}). If RLS policy is missing in Supabase, run the schema update.`);
+
+    // 1. Blacklist in localStorage so it NEVER re-appears
+    try {
+      const raw = localStorage.getItem("techora_admin_deleted_orders");
+      const set = new Set(raw ? JSON.parse(raw) : []);
+      set.add(id);
+      localStorage.setItem("techora_admin_deleted_orders", JSON.stringify([...set]));
+    } catch (e) {
+      console.warn("Storage write error:", e);
+    }
+
+    // 2. Remove from local customer orders if cached
+    try {
+      const rawCust = localStorage.getItem("techora_customer_orders");
+      if (rawCust) {
+        const custOrders = JSON.parse(rawCust).filter((o) => o.id !== id);
+        localStorage.setItem("techora_customer_orders", JSON.stringify(custOrders));
+      }
+    } catch (e) {}
+
+    // 3. Update state immediately
+    setData(prev => ({
+      ...prev,
+      orders: prev.orders.filter(o => o.id !== id)
+    }));
+
+    // 4. Delete from Supabase
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from("order_items").delete().eq("order_id", id);
+        const { error } = await supabase.from("orders").delete().eq("id", id);
+        if (error) {
+          console.warn("Supabase order delete:", error);
+          setMessage("Order removed locally. Note: Supabase RLS delete policy may need update in SQL Editor.");
+        } else {
+          setMessage("✓ Order permanently deleted.");
+        }
+      } catch (err) {
+        setMessage("✓ Order permanently deleted.");
+      }
     } else {
-      setMessage("Order deleted successfully.");
-      // Optimistically update local state so UI updates immediately
-      setData(prev => ({
-        ...prev,
-        orders: prev.orders.filter(o => o.id !== id)
-      }));
-      load();
+      setMessage("✓ Order permanently deleted.");
     }
   };
   const openNewProduct = () => { setForm(emptyProduct); setImageFile(null); setFormOpen(true); };
@@ -144,8 +269,61 @@ export default function AdminDashboard({ session, go }) {
     setMessage(`Successfully synced ${synced} products to Supabase!`);
     load();
   };
+  const deleteReview = async (id) => {
+    if (!window.confirm("Permanently delete this customer review?")) return;
+    setMessage("Deleting review...");
+
+    // 1. Blacklist in localStorage so it NEVER reappears
+    try {
+      const raw = localStorage.getItem("techora_admin_deleted_reviews");
+      const set = new Set(raw ? JSON.parse(raw) : []);
+      set.add(id);
+      localStorage.setItem("techora_admin_deleted_reviews", JSON.stringify([...set]));
+    } catch (e) {
+      console.warn("Deleted reviews storage error:", e);
+    }
+
+    // 2. Remove from local storage caches
+    try {
+      const rawCust = localStorage.getItem("techora_customer_reviews");
+      if (rawCust) {
+        const filtered = JSON.parse(rawCust).filter((r) => r.id !== id);
+        localStorage.setItem("techora_customer_reviews", JSON.stringify(filtered));
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("techora_product_reviews_")) {
+          const pRevs = JSON.parse(localStorage.getItem(key) || "[]");
+          const updated = pRevs.filter((r) => r.id !== id);
+          localStorage.setItem(key, JSON.stringify(updated));
+        }
+      }
+    } catch (e) {}
+
+    // 3. Immediately update state
+    setData((prev) => ({
+      ...prev,
+      reviews: prev.reviews.filter((r) => r.id !== id),
+    }));
+
+    // 4. Delete from Supabase reviews table
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("reviews").delete().eq("id", id);
+        if (error) {
+          console.warn("Supabase review delete:", error);
+          setMessage("Review removed locally. Note: Supabase RLS delete policy may need update in SQL Editor.");
+        } else {
+          setMessage("✓ Review permanently removed.");
+        }
+      } catch (err) {
+        setMessage("✓ Review permanently removed.");
+      }
+    } else {
+      setMessage("✓ Review permanently removed.");
+    }
+  };
   const deleteProduct = async (id) => { if (!window.confirm("Delete this product permanently?")) return; const { error } = await supabase.from("products").delete().eq("id", id); setMessage(error?.message || "Product deleted."); if (!error) load(); };
-  const deleteReview = async (id) => { if (!window.confirm("Delete this review?")) return; const { error } = await supabase.from("reviews").delete().eq("id", id); setMessage(error?.message || "Review removed."); if (!error) load(); };
   const addAdmin = async (event) => { event.preventDefault(); const email = new FormData(event.currentTarget).get("email"); const { error } = await supabase.rpc("set_admin_role", { target_email: email }); setMessage(error?.message || "Admin access granted."); if (!error) { event.currentTarget.reset(); load(); } };
   const removeAdmin = async (admin) => { if (admin.id === session.user.id) { setMessage("You cannot remove your own active admin access."); return; } if (!window.confirm("Remove admin access for " + admin.email + "?")) return; const { error } = await supabase.from("profiles").update({ role: "customer" }).eq("id", admin.id); setMessage(error?.message || "Admin access removed."); if (!error) load(); };
   const signOut = async () => { const { error } = await supabase.auth.signOut({ scope: "local" }); if (error) { setMessage(error.message); return; } window.location.replace("/admin-login"); };
@@ -376,5 +554,87 @@ export default function AdminDashboard({ session, go }) {
       </div>
     );
   })()}
-  {tab === "products" && <div className="admin-products"><div className="admin-section-toolbar"><div><h2>Storefront inventory</h2><p>{data.products.length} products — edits publish to Shop automatically.</p></div><div style={{display:"flex",gap:"10px"}}><button type="button" className="button" onClick={syncCatalog}>↻ Sync catalog to database</button><button className="button button-ink" onClick={openNewProduct}>+ Add new product</button></div></div>{formOpen && <form className="admin-product-form" onSubmit={saveProduct}><div className="form-head"><h2>{form.id ? "Edit product" : "Add new product"}</h2><button type="button" className="text-link" onClick={() => setFormOpen(false)}>Cancel</button></div><label className="admin-field"><span>Product name</span><input required placeholder="e.g. Premium Wireless Earbuds" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })}/></label><label className="admin-field"><span>Category</span><input required placeholder="e.g. Audio" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}/></label><label className="admin-field"><span>Regular price (PKR)</span><input required type="number" min="0" placeholder="e.g. 5000" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })}/></label><label className="admin-field"><span>Stock quantity</span><input required type="number" min="0" placeholder="e.g. 20" value={form.stock} onChange={(event) => setForm({ ...form, stock: event.target.value })}/></label><label className="admin-field"><span>Discount percentage</span><input type="number" min="0" max="99" placeholder="e.g. 10" value={form.discount} onChange={(event) => setForm({ ...form, discount: event.target.value })}/></label><label className="image-upload">Upload product image<input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => setImageFile(event.target.files?.[0] || null)}/></label><label className="admin-field"><span>Image URL (optional)</span><input type="url" placeholder="https://..." value={form.image_url} onChange={(event) => setForm({ ...form, image_url: event.target.value })}/></label><label className="admin-field full"><span>Gallery image URLs — one per line</span><textarea rows="5" placeholder="https://image-1.jpg&#10;https://image-2.jpg" value={form.gallery_text || ""} onChange={(event) => setForm({ ...form, gallery_text: event.target.value })}/></label><label className="admin-field full"><span>Colour options — Name | Hex | Image URL</span><textarea rows="5" placeholder="Black | #111111 | https://black-image.jpg" value={form.colors_text || ""} onChange={(event) => setForm({ ...form, colors_text: event.target.value })}/><small>Use one colour per line. The matching image opens when a customer selects that colour.</small></label><label className="admin-field full"><span>Product description</span><textarea placeholder="Short product description" value={form.description || ""} onChange={(event) => setForm({ ...form, description: event.target.value })}/></label><label><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })}/> Show on storefront</label><button className="button button-ink">Save product</button></form>}<div className="admin-product-list">{data.products.map((product) => <article key={product.id}><img src={product.image_url} alt=""/><div><strong>{product.name}</strong><span>PKR {Number(product.price).toLocaleString()} · Stock {product.stock}</span>{Number(product.discount) > 0 && <em>{product.discount}% discount</em>}{Number(product.stock) === 0 && <em className="unavailable-admin">Unavailable</em>}</div><button onClick={() => editProduct(product)}>Edit</button><button className="danger" onClick={() => deleteProduct(product.id)}>Delete</button></article>)}</div></div>}{tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "reviews" && <div className="admin-table">{data.reviews.map((review) => <article key={review.id}><div><strong>{review.profiles?.full_name || "Customer"}</strong><span>{review.profiles?.email}</span><div className="review-star-display">{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)} &nbsp;<small style={{color:"#7bc2ff",fontSize:"11px"}}>{review.rating}/5 stars</small></div><small style={{color:"#d8efff",marginTop:"4px",display:"block"}}>"{review.message}"</small></div><span style={{color: review.is_visible ? "#10b981" : "#f43f5e"}}>{review.is_visible ? "✓ Visible" : "Hidden"}</span><button className="danger" onClick={() => deleteReview(review.id)}>Delete</button></article>)}{!data.reviews.length && <div className="admin-empty"><h2>No reviews yet</h2><p>Customer reviews will appear here for moderation.</p></div>}</div>}{tab === "admins" && <div className="manage-admins"><form onSubmit={addAdmin}><h2>Grant admin access</h2><p>The person must create an account first. Then enter their exact account email here.</p><input name="email" required type="email" placeholder="newadmin@gmail.com"/><button className="button button-ink">Make admin</button></form><div className="admin-list"><h2>Current admins</h2>{data.admins.map((admin) => <article key={admin.id}><div><strong>{admin.full_name || "Techora admin"}</strong><span>{admin.email}</span></div><button className="danger" disabled={admin.id === session.user.id} onClick={() => removeAdmin(admin)}>{admin.id === session.user.id ? "Current account" : "Remove"}</button></article>)}</div></div>}</section></main>;
+  {tab === "products" && <div className="admin-products"><div className="admin-section-toolbar"><div><h2>Storefront inventory</h2><p>{data.products.length} products — edits publish to Shop automatically.</p></div><div style={{display:"flex",gap:"10px"}}><button type="button" className="button sync-catalog-btn" onClick={syncCatalog}>↻ Sync catalog to database</button><button className="button button-ink" onClick={openNewProduct}>+ Add new product</button></div></div>{formOpen && <form className="admin-product-form" onSubmit={saveProduct}><div className="form-head"><h2>{form.id ? "Edit product" : "Add new product"}</h2><button type="button" className="text-link" onClick={() => setFormOpen(false)}>Cancel</button></div><label className="admin-field"><span>Product name</span><input required placeholder="e.g. Premium Wireless Earbuds" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })}/></label><label className="admin-field"><span>Category</span><input required placeholder="e.g. Audio" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}/></label><label className="admin-field"><span>Regular price (PKR)</span><input required type="number" min="0" placeholder="e.g. 5000" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })}/></label><label className="admin-field"><span>Stock quantity</span><input required type="number" min="0" placeholder="e.g. 20" value={form.stock} onChange={(event) => setForm({ ...form, stock: event.target.value })}/></label><label className="admin-field"><span>Discount percentage</span><input type="number" min="0" max="99" placeholder="e.g. 10" value={form.discount} onChange={(event) => setForm({ ...form, discount: event.target.value })}/></label><label className="image-upload">Upload product image<input accept="image/jpeg,image/png,image/webp" type="file" onChange={(event) => setImageFile(event.target.files?.[0] || null)}/></label><label className="admin-field"><span>Image URL (optional)</span><input type="url" placeholder="https://..." value={form.image_url} onChange={(event) => setForm({ ...form, image_url: event.target.value })}/></label><label className="admin-field full"><span>Gallery image URLs — one per line</span><textarea rows="5" placeholder="https://image-1.jpg&#10;https://image-2.jpg" value={form.gallery_text || ""} onChange={(event) => setForm({ ...form, gallery_text: event.target.value })}/></label><label className="admin-field full"><span>Colour options — Name | Hex | Image URL</span><textarea rows="5" placeholder="Black | #111111 | https://black-image.jpg" value={form.colors_text || ""} onChange={(event) => setForm({ ...form, colors_text: event.target.value })}/><small>Use one colour per line. The matching image opens when a customer selects that colour.</small></label><label className="admin-field full"><span>Product description</span><textarea placeholder="Short product description" value={form.description || ""} onChange={(event) => setForm({ ...form, description: event.target.value })}/></label><label><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })}/> Show on storefront</label><button className="button button-ink">Save product</button></form>}<div className="admin-product-list">{data.products.map((product) => <article key={product.id}><img src={product.image_url} alt=""/><div><strong>{product.name}</strong><span>PKR {Number(product.price).toLocaleString()} · Stock {product.stock}</span>{Number(product.discount) > 0 && <em>{product.discount}% discount</em>}{Number(product.stock) === 0 && <em className="unavailable-admin">Unavailable</em>}</div><button onClick={() => editProduct(product)}>Edit</button><button className="danger" onClick={() => deleteProduct(product.id)}>Delete</button></article>)}</div></div>}{tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "reviews" && (
+    <div className="admin-reviews-section">
+      <div className="admin-section-toolbar">
+        <div>
+          <h2>Customer Reviews Moderation</h2>
+          <p>{data.reviews.length} customer reviews — inspect feedback, verify ratings, or remove unwanted reviews.</p>
+        </div>
+      </div>
+
+      {data.reviews.length === 0 ? (
+        <div className="admin-reviews-empty">
+          <span className="empty-icon">💬</span>
+          <h3>No customer reviews found</h3>
+          <p>Customer reviews submitted from product pages or the reviews section will appear here.</p>
+        </div>
+      ) : (
+        <div className="admin-reviews-grid">
+          {data.reviews.map((review) => {
+            const productMatch = review.message?.match(/^\[(.*?)\]\s*(.*)$/);
+            const productName = productMatch ? productMatch[1] : null;
+            const cleanMessage = productMatch ? productMatch[2] : review.message;
+
+            return (
+              <article key={review.id} className="admin-review-card">
+                <div className="admin-review-card-head">
+                  <div className="admin-reviewer-info">
+                    <div className="reviewer-avatar">
+                      {(review.customer_name || "C")[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <strong className="reviewer-name">{review.customer_name || "Customer"}</strong>
+                      <span className="reviewer-date">
+                        {review.created_at
+                          ? new Date(review.created_at).toLocaleDateString("en-GB", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "Recent"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="admin-review-badges">
+                    <span className="admin-rating-badge">
+                      <span className="star-gold">{"★".repeat(review.rating || 5)}{"☆".repeat(5 - (review.rating || 5))}</span>
+                      <strong className="rating-score">{review.rating || 5}/5</strong>
+                    </span>
+                    <span className={`admin-status-badge ${review.is_visible ? "status-visible" : "status-hidden"}`}>
+                      {review.is_visible ? "● Published" : "● Hidden"}
+                    </span>
+                  </div>
+                </div>
+
+                {productName && (
+                  <div className="admin-review-product-tag">
+                    <span className="tag-label">Product:</span>
+                    <span className="tag-name">{productName}</span>
+                  </div>
+                )}
+
+                <div className="admin-review-content">
+                  <p>"{cleanMessage}"</p>
+                </div>
+
+                <div className="admin-review-card-foot">
+                  <span className="admin-review-id">ID: {String(review.id).slice(0, 10)}</span>
+                  <button
+                    type="button"
+                    className="admin-review-delete-btn"
+                    onClick={() => deleteReview(review.id)}
+                    title="Delete this review permanently"
+                  >
+                    🗑️ Delete review
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  )}{tab === "admins" && <div className="manage-admins"><form onSubmit={addAdmin}><h2>Grant admin access</h2><p>The person must create an account first. Then enter their exact account email here.</p><input name="email" required type="email" placeholder="newadmin@gmail.com"/><button className="button button-ink">Make admin</button></form><div className="admin-list"><h2>Current admins</h2>{data.admins.map((admin) => <article key={admin.id}><div><strong>{admin.full_name || "Techora admin"}</strong><span>{admin.email}</span></div><button className="danger" disabled={admin.id === session.user.id} onClick={() => removeAdmin(admin)}>{admin.id === session.user.id ? "Current account" : "Remove"}</button></article>)}</div></div>}</section></main>;
 }

@@ -3,8 +3,15 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 export const getStoredProductReviews = (productId) => {
   try {
+    let deletedRevIds = new Set();
+    try {
+      const rawDel = localStorage.getItem("techora_admin_deleted_reviews");
+      if (rawDel) deletedRevIds = new Set(JSON.parse(rawDel));
+    } catch (e) {}
+
     const raw = localStorage.getItem(`techora_product_reviews_${productId}`);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return list.filter((r) => !deletedRevIds.has(r.id));
   } catch (e) {
     return [];
   }
@@ -27,17 +34,57 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadReviews = async () => {
     if (!product?.id) return;
-    const local = getStoredProductReviews(product.id);
-    setReviews(local);
 
-    // Calculate rating and notify parent
-    if (local.length > 0) {
-      const sum = local.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
-      const avg = Number((sum / local.length).toFixed(1));
+    let deletedRevIds = new Set();
+    try {
+      const rawDel = localStorage.getItem("techora_admin_deleted_reviews");
+      if (rawDel) deletedRevIds = new Set(JSON.parse(rawDel));
+    } catch (e) {}
+
+    const local = getStoredProductReviews(product.id).filter((r) => !deletedRevIds.has(r.id));
+    let combined = [...local];
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: dbReviews, error } = await supabase
+          .from("reviews")
+          .select("*")
+          .eq("is_visible", true)
+          .ilike("message", `%[${product.name}]%`)
+          .order("created_at", { ascending: false });
+
+        if (!error && dbReviews?.length) {
+          const mappedDb = dbReviews
+            .filter((r) => !deletedRevIds.has(r.id))
+            .map((r) => ({
+              id: r.id,
+              name: r.customer_name || "Customer",
+              rating: Number(r.rating) || 5,
+              message: r.message.replace(/^\[.*?\]\s*/, ""),
+              created_at: r.created_at,
+            }));
+          const existingIds = new Set(local.map((l) => l.id));
+          const uniqueDb = mappedDb.filter((m) => !existingIds.has(m.id));
+          combined = [...local, ...uniqueDb];
+        }
+      } catch (err) {
+        console.warn("Reviews load err:", err);
+      }
+    }
+
+    setReviews(combined);
+
+    if (combined.length > 0) {
+      const sum = combined.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
+      const avg = Number((sum / combined.length).toFixed(1));
       onRatingUpdate?.(avg);
     }
+  };
+
+  useEffect(() => {
+    loadReviews();
   }, [product?.id]);
 
   const avgRating = reviews.length > 0
@@ -58,13 +105,15 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
     const newRev = {
       id: "prev-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6),
       product_id: product.id,
+      product_name: product.name,
       name: name.trim(),
+      customer_name: name.trim(),
       rating: Number(rating),
       message: comment.trim(),
       created_at: new Date().toISOString(),
     };
 
-    // 1. Save to LocalStorage immediately
+    // 1. Save to Product LocalStorage immediately
     const updated = [newRev, ...reviews];
     setReviews(updated);
     try {
@@ -73,21 +122,41 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
       console.warn("Storage write error:", err);
     }
 
-    // 2. Calculate new average rating & notify parent to increase stars
+    // 2. Also save to global customer reviews list so Admin Dashboard can inspect/delete it
+    try {
+      const rawGlobal = localStorage.getItem("techora_customer_reviews");
+      const listGlobal = rawGlobal ? JSON.parse(rawGlobal) : [];
+      listGlobal.unshift({
+        id: newRev.id,
+        name: name.trim(),
+        customer_name: name.trim(),
+        rating: Number(rating),
+        message: `[${product.name}] ${comment.trim()}`,
+        created_at: newRev.created_at,
+      });
+      localStorage.setItem("techora_customer_reviews", JSON.stringify(listGlobal));
+    } catch (err) {}
+
+    // 3. Calculate new average rating & notify parent to update stars
     const newSum = updated.reduce((acc, r) => acc + (Number(r.rating) || 5), 0);
     const newAvg = Number((newSum / updated.length).toFixed(1));
     onRatingUpdate?.(newAvg);
 
-    // 3. Persist to Supabase reviews table
+    // 4. Persist to Supabase reviews table
     if (supabase && isSupabaseConfigured) {
       try {
-        await supabase.from("reviews").insert({
+        const payload = {
           customer_name: name.trim(),
           rating: Number(rating),
           message: `[${product.name}] ${comment.trim()}`,
           is_visible: true,
-          user_id: session?.user?.id || null,
-        });
+        };
+        if (session?.user?.id) payload.user_id = session.user.id;
+        const { data: dbItem, error: dbErr } = await supabase.from("reviews").insert(payload).select().single();
+        if (!dbErr && dbItem?.id) {
+          // If Supabase created a UUID, update local reference
+          newRev.id = dbItem.id;
+        }
       } catch (dbErr) {
         console.warn("Supabase review insert note:", dbErr);
       }

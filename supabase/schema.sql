@@ -37,11 +37,17 @@ create table if not exists public.order_items (
 );
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  customer_name text,
   rating integer not null default 5 check (rating between 1 and 5),
-  message text not null check (char_length(message) between 5 and 1000),
-  is_visible boolean not null default true, created_at timestamptz not null default now()
+  message text not null,
+  is_visible boolean not null default true,
+  created_at timestamptz not null default now()
 );
+
+-- Migration helpers if table already exists
+alter table public.reviews add column if not exists customer_name text;
+alter table public.reviews alter column user_id drop not null;
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$
 begin insert into public.profiles(id,email,full_name) values(new.id,new.email,coalesce(new.raw_user_meta_data->>'full_name',new.raw_user_meta_data->>'name')); return new; end; $$;
@@ -75,7 +81,7 @@ drop policy if exists "orders own or admin read" on public.orders;
 create policy "orders own or admin read" on public.orders for select using (user_id=auth.uid() or public.is_admin());
 
 drop policy if exists "orders customer create" on public.orders;
-create policy "orders customer create" on public.orders for insert with check (user_id=auth.uid());
+create policy "orders customer create" on public.orders for insert with check (true);
 
 drop policy if exists "orders admin update" on public.orders;
 create policy "orders admin update" on public.orders for update using (public.is_admin()) with check (public.is_admin());
@@ -87,16 +93,16 @@ drop policy if exists "items own or admin read" on public.order_items;
 create policy "items own or admin read" on public.order_items for select using (exists(select 1 from public.orders where orders.id=order_items.order_id and (orders.user_id=auth.uid() or public.is_admin())));
 
 drop policy if exists "items customer create" on public.order_items;
-create policy "items customer create" on public.order_items for insert with check (exists(select 1 from public.orders where orders.id=order_items.order_id and orders.user_id=auth.uid()));
+create policy "items customer create" on public.order_items for insert with check (true);
 
 drop policy if exists "items admin delete" on public.order_items;
 create policy "items admin delete" on public.order_items for delete using (public.is_admin());
 
 drop policy if exists "reviews public read" on public.reviews;
-create policy "reviews public read" on public.reviews for select using (is_visible=true or user_id=auth.uid() or public.is_admin());
+create policy "reviews public read" on public.reviews for select using (true);
 
 drop policy if exists "reviews customer create" on public.reviews;
-create policy "reviews customer create" on public.reviews for insert with check (user_id=auth.uid());
+create policy "reviews customer create" on public.reviews for insert with check (true);
 
 drop policy if exists "reviews admin delete" on public.reviews;
 create policy "reviews admin delete" on public.reviews for delete using (public.is_admin());
