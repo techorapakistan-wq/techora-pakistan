@@ -24,7 +24,7 @@ create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   customer_name text not null, phone text not null, address text not null,
-  payment_method text not null check (payment_method in ('easypaisa','jazzcash','cod')),
+  payment_method text not null check (payment_method in ('easypaisa','jazzcash','bank_transfer','cod')),
   status text not null default 'pending_payment' check (status in ('pending_payment','approved','processing','completed','cancelled')),
   total numeric(12,2) not null check (total >= 0), created_at timestamptz not null default now()
 );

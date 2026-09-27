@@ -1,0 +1,12 @@
+{
+  "name": "Techora Pakistan",
+  "short_name": "Techora",
+  "description": "Premium tech and smart accessories in Pakistan.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#061b39",
+  "icons": [
+    {"src":"/techora-favicon.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

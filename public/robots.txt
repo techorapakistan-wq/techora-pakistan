@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin-login
+Disallow: /cart
+Disallow: /wishlist
+Disallow: /orders
+Disallow: /login
+
+Sitemap: https://techorapakistan.com/sitemap.xml

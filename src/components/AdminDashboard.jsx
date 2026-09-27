@@ -5,6 +5,7 @@ import { fallbackProducts } from "../data/catalog";
 
 const emptyProduct = { name: "", category: "Accessories", price: "", image_url: "", gallery_text: "", colors_text: "", description: "", stock: "0", discount: "0", is_active: true };
 const statusLabel = { pending_payment: "Pending payment", approved: "Confirmed", processing: "Processing", completed: "Completed", cancelled: "Cancelled" };
+const paymentLabel = { easypaisa: "EasyPaisa", jazzcash: "SadaPay", bank_transfer: "HBL transfer", cod: "Cash on delivery" };
 
 export default function AdminDashboard({ session, go }) {
   const [tab, setTab] = useState("orders");
@@ -447,7 +448,7 @@ export default function AdminDashboard({ session, go }) {
                       ● {statusLabel[order.status] || order.status}
                     </span>
                     <span className="order-payment-method-pill">
-                      💳 {order.payment_method?.toUpperCase() || "ADVANCE"}
+                      💳 {paymentLabel[order.payment_method] || order.payment_method?.toUpperCase() || "ADVANCE"}
                     </span>
                     <strong className="order-price-bold">PKR {Number(order.total).toLocaleString()}</strong>
                   </div>
