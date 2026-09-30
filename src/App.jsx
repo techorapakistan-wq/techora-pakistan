@@ -19,6 +19,11 @@ import ProductReviewsBox, { getStoredProductRating } from "./components/ProductR
 
 const money = (number) => `PKR ${Number(number || 0).toLocaleString()}`;
 const originalPrice = (product) => { const discount = Number(product.discount || 0); return discount > 0 ? Math.round(Number(product.price) / (1 - discount / 100)) : Number(product.price); };
+const setMeta = (attribute, key, value) => {
+  let element = document.head.querySelector('meta[' + attribute + '="' + key + '"]');
+  if (!element) { element = document.createElement("meta"); element.setAttribute(attribute, key); document.head.append(element); }
+  element.setAttribute("content", value);
+};
 
 function Icon({ name }) {
   const paths = { menu:<><path d="M4 7h16M4 12h16M4 17h16"/></>, close:<path d="M6 6l12 12M18 6 6 18"/>, search:<><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></>, heart:<path d="M20.8 8.6c0 5.2-8.8 10.4-8.8 10.4S3.2 13.8 3.2 8.6A4.4 4.4 0 0 1 11 5.8L12 7l1-1.2a4.4 4.4 0 0 1 7.8 2.8Z"/>, bag:<><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></>, arrow:<><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>, plus:<><path d="M12 5v14M5 12h14"/></>, sliders:<><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></>, user:<><circle cx="12" cy="8" r="3.3"/><path d="M5.5 20c.55-3.4 3.1-5.35 6.5-5.35S17.95 16.6 18.5 20"/></>, whatsapp:<path d="M12 3a8.7 8.7 0 0 0-7.5 13.1L3.4 21l5-1.3A8.7 8.7 0 1 0 12 3Zm0 15.9c-1.3 0-2.6-.35-3.7-1l-.27-.16-2.96.78.8-2.88-.18-.3A7.16 7.16 0 1 1 12 18.9Zm3.94-5.37c-.22-.11-1.3-.64-1.5-.71-.2-.07-.35-.11-.5.11-.15.22-.56.7-.69.84-.13.15-.26.17-.48.06-.22-.11-.92-.34-1.75-1.08-.65-.57-1.08-1.28-1.21-1.5-.13-.22-.02-.34.1-.45.1-.1.22-.25.32-.38.11-.13.14-.22.22-.36.07-.15.04-.28-.02-.39-.06-.11-.5-1.2-.68-1.64-.18-.43-.36-.37-.5-.38h-.43c-.15 0-.39.06-.59.28-.2.22-.77.75-.77 1.83s.79 2.12.9 2.27c.11.15 1.55 2.37 3.75 3.33.52.23.94.36 1.26.47.53.17 1.02.14 1.4.09.43-.06 1.3-.53 1.48-1.04.19-.51.19-.95.13-1.04-.05-.09-.2-.15-.42-.26Z"/> };
@@ -49,6 +54,26 @@ export default function App() {
   const toggleWish = (product) => setWishlist(old => old.includes(product.id) ? old.filter(id => id !== product.id) : [...old, product.id]);
   const openProduct = (product) => go(`/product/${product.id}`);
   const selected = products.find(product => `/product/${product.id}` === path) || fallbackProducts.find(product => `/product/${product.id}` === path);
+  useEffect(() => {
+    const pageUrl = new URL(path, window.location.origin);
+    const isPrivate = ["/admin", "/admin-login", "/cart", "/wishlist", "/orders", "/login"].includes(path);
+    const pageTitle = selected ? selected.name + " | Techora Pakistan" : ({ "/": "Techora Pakistan | Smart Choices. Better Tech.", "/shop": "Shop Techora | Smart Tech & Accessories in Pakistan", "/reviews": "Customer Reviews | Techora Pakistan", "/story": "Our Story | Techora Pakistan" }[path] || "Techora Pakistan | Smart Choices. Better Tech.");
+    const pageDescription = selected ? (selected.name + " — " + (selected.description || selected.category || "smart technology and accessories") + ". Shop online at Techora Pakistan with nationwide delivery.").slice(0, 160) : ({ "/": "Shop smart accessories, earbuds, watches and useful technology at Techora Pakistan, with nationwide delivery.", "/shop": "Explore Techora Pakistan collection of smart technology, accessories, earbuds and watches with nationwide delivery.", "/reviews": "Read customer reviews and share your experience with Techora Pakistan.", "/story": "Learn about Techora Pakistan and our considered collection of useful technology." }[path] || "Shop smart technology and accessories at Techora Pakistan, with nationwide delivery.");
+    const pageImage = selected?.image ? new URL(selected.image, window.location.origin).href : "https://techorapakistan.com/og-techora.jpg";
+    document.title = pageTitle;
+    const description = document.head.querySelector("meta[name=description]");
+    if (description) description.setAttribute("content", pageDescription);
+    setMeta("name", "robots", isPrivate ? "noindex, nofollow" : "index, follow, max-image-preview:large");
+    const canonical = document.head.querySelector("link[rel=canonical]");
+    if (canonical) canonical.href = pageUrl.href;
+    setMeta("property", "og:title", pageTitle);
+    setMeta("property", "og:description", pageDescription);
+    setMeta("property", "og:url", pageUrl.href);
+    setMeta("property", "og:image", pageImage);
+    setMeta("name", "twitter:title", pageTitle);
+    setMeta("name", "twitter:description", pageDescription);
+    setMeta("name", "twitter:image", pageImage);
+  }, [path, selected?.id, selected?.name, selected?.description, selected?.category, selected?.image]);
   const filtered = useMemo(() => products.filter(product => (filter === "All" || product.category === filter) && product.price <= limit).sort((a,b) => sort === "Price: low to high" ? a.price-b.price : sort === "Price: high to low" ? b.price-a.price : a.id-b.id), [filter, limit, sort]);
   const isAdminRoute = path === "/admin" || path === "/admin-login";
   if (isAdminRoute) return session ? <AdminDashboard session={session} go={go}/> : <AuthScreen go={go} mode="admin"/>;
