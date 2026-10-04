@@ -1,0 +1,4 @@
+project_id = "techora-pakistan"
+
+[functions.cloudinary-signature]
+verify_jwt = true
