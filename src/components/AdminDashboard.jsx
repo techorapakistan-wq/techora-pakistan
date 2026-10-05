@@ -202,9 +202,36 @@ export default function AdminDashboard({ session, go }) {
     const updates = { status };
     if (status === "approved") updates.confirmed_at = new Date().toISOString();
     else if (status === "pending_payment") updates.confirmed_at = null;
-    const { error } = await supabase.from("orders").update(updates).eq("id", id);
-    setMessage(error?.message || "Order status updated.");
-    if (!error) load();
+    const { data: savedOrder, error } = await supabase.from("orders").update(updates).eq("id", id).select("id").maybeSingle();
+    setMessage(error?.message || (savedOrder ? "Order status updated." : "This order is not saved in Supabase, so its status could not be updated."));
+    if (savedOrder) load();
+  };
+  const applyStockToExistingOrder = async (id) => {
+    const order = data.orders.find((item) => item.id === id);
+    if (!order || !["approved", "processing", "completed"].includes(order.status)) return;
+    if (order.payment_proof_required && (!getPaymentProof(order)?.storage_path || !order?.paymentProofUrl)) {
+      setMessage("Upload and review the payment screenshot before adjusting this order's stock.");
+      return;
+    }
+    setMessage("Adjusting product stock for this order…");
+    const { data: savedOrder, error } = await supabase
+      .from("orders")
+      .update({ status: order.status })
+      .eq("id", id)
+      .is("stock_deducted_at", null)
+      .select("id, stock_deducted_at")
+      .maybeSingle();
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+    if (!savedOrder) {
+      setMessage("Stock was already adjusted, or this order is not saved in Supabase.");
+      load();
+      return;
+    }
+    setMessage("Stock deducted for this order.");
+    load();
   };
   const deleteOrder = async (id) => {
     if (!window.confirm("Permanently delete this order from the system? This action cannot be undone.")) return;
@@ -639,6 +666,16 @@ export default function AdminDashboard({ session, go }) {
                   </div>
 
                   <div className="order-action-buttons">
+                    {["approved", "processing", "completed"].includes(order.status) && order.stock_deducted_at === null && (
+                      <button
+                        type="button"
+                        className="stock-deduction-button"
+                        onClick={() => applyStockToExistingOrder(order.id)}
+                        title="Apply the stock change once for this already confirmed order"
+                      >
+                        Apply stock deduction
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="order-delete-btn"
