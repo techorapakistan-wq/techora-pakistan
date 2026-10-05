@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import PaymentSettingsAdmin from "./PaymentSettingsAdmin";
+import WebsiteSettingsAdmin from "./WebsiteSettingsAdmin";
+import SalesAnalytics from "./SalesAnalytics";
 import { fallbackProducts } from "../data/catalog";
 
 const cloudinaryUploadsEnabled = import.meta.env.VITE_CLOUDINARY_ENABLED === "true";
@@ -17,6 +19,7 @@ const COLOR_OPTIONS = [
 ];
 const statusLabel = { pending_payment: "Pending payment", approved: "Confirmed", processing: "Processing", completed: "Completed", cancelled: "Cancelled" };
 const paymentLabel = { easypaisa: "EasyPaisa", jazzcash: "SadaPay", bank_transfer: "HBL transfer", cod: "Cash on delivery" };
+const getPaymentProof = (order) => Array.isArray(order?.order_payment_proofs) ? order.order_payment_proofs[0] || null : order?.order_payment_proofs || null;
 
 export default function AdminDashboard({ session, go }) {
   const [tab, setTab] = useState("orders");
@@ -51,7 +54,7 @@ export default function AdminDashboard({ session, go }) {
 
     const [profile, orders, products, reviewsRes, admins] = await Promise.all([
       supabase.from("profiles").select("role").eq("id", session.user.id).single(),
-      supabase.from("orders").select("*, order_items(*)").order("created_at", { ascending: false }),
+      supabase.from("orders").select("*, order_items(*), order_payment_proofs(*)").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("reviews").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id,full_name,email,role").eq("role", "admin").order("email"),
@@ -80,6 +83,13 @@ export default function AdminDashboard({ session, go }) {
 
     // Strictly filter out blacklisted deleted orders so they never re-appear
     orderList = orderList.filter(o => !deletedOrderIds.has(o.id));
+
+    orderList = await Promise.all(orderList.map(async (order) => {
+      const proof = getPaymentProof(order);
+      if (!proof?.storage_path) return order;
+      const { data: signed } = await supabase.storage.from("payment-proofs").createSignedUrl(proof.storage_path, 3600);
+      return { ...order, paymentProofUrl: signed?.signedUrl || "" };
+    }));
 
     const dbProducts = (products.data || []).map(p => ({ ...p, image_url: p.image_url || p.image }));
     const dbIds = new Set(dbProducts.map(p => p.id));
@@ -182,7 +192,20 @@ export default function AdminDashboard({ session, go }) {
     setData({ orders: orderList, products: allProducts, reviews: mergedReviews, admins: admins.data || [] });
   };
   useEffect(() => { load(); }, [session]);
-  const updateOrder = async (id, status) => { const { error } = await supabase.from("orders").update({ status }).eq("id", id); setMessage(error?.message || "Order status updated."); if (!error) load(); };
+  const updateOrder = async (id, status) => {
+    const order = data.orders.find((item) => item.id === id);
+    const isConfirmingSale = ["approved", "processing", "completed"].includes(status);
+    if (isConfirmingSale && order?.payment_proof_required && (!getPaymentProof(order)?.storage_path || !order?.paymentProofUrl)) {
+      setMessage("Upload and review the payment screenshot before confirming this order.");
+      return;
+    }
+    const updates = { status };
+    if (status === "approved") updates.confirmed_at = new Date().toISOString();
+    else if (status === "pending_payment") updates.confirmed_at = null;
+    const { error } = await supabase.from("orders").update(updates).eq("id", id);
+    setMessage(error?.message || "Order status updated.");
+    if (!error) load();
+  };
   const deleteOrder = async (id) => {
     if (!window.confirm("Permanently delete this order from the system? This action cannot be undone.")) return;
     setMessage("Deleting order...");
@@ -446,14 +469,10 @@ export default function AdminDashboard({ session, go }) {
   if (!isSupabaseConfigured) return <main className="auth-page"><section className="auth-card"><h1>Connect <em>Supabase.</em></h1><p>Add Supabase environment values to enable the admin dashboard.</p></section></main>;
   if (role && role !== "admin") return <main className="auth-page"><section className="auth-card"><h1>Access <em>restricted.</em></h1><p>This account is not an approved Techora admin.</p><p className="auth-helper">Currently signed in as: <strong>{session.user.email}</strong></p><button className="button button-ink" onClick={signOut}>Sign out and switch account</button><button className="text-link" onClick={() => go("/")}>Back to store</button></section></main>;
   const pending = data.orders.filter((order) => order.status === "pending_payment").length;
-  return <main className="admin-shell"><aside className="admin-sidebar"><img src="/techora-favicon.png" alt="Techora" /><p>TECHORA ADMIN</p>{[["orders", "Orders", pending], ["products", "Products"], ["payments", "Payment details"], ["reviews", "Reviews"], ["admins", "Manage admins"]].map(([id, label, count]) => <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>{label}{count ? <b>{count}</b> : null}</button>)}<button className="admin-store-link" onClick={() => go("/")}>View storefront</button></aside><section className="admin-main"><header><div><p className="eyebrow">CONTROL CENTRE</p><h1>{tab === "payments" ? "Payment details" : tab === "admins" ? "Manage admins" : tab[0].toUpperCase() + tab.slice(1)}</h1></div><div className="admin-user"><span>{session.user.email}</span><button onClick={signOut}>Sign out</button></div></header>{message && <p className="admin-message" role="status">{message}</p>}{tab === "orders" && (() => {
+  return <main className="admin-shell"><aside className="admin-sidebar"><img src="/techora-favicon.png" alt="Techora" /><p>TECHORA ADMIN</p>{[["orders", "Orders", pending], ["products", "Products"], ["payments", "Payment details"], ["website settings", "Website settings"], ["reviews", "Reviews"], ["admins", "Manage admins"]].map(([id, label, count]) => <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>{label}{count ? <b>{count}</b> : null}</button>)}<button className="admin-store-link" onClick={() => go("/")}>View storefront</button></aside><section className="admin-main"><header><div><p className="eyebrow">CONTROL CENTRE</p><h1>{tab === "payments" ? "Payment details" : tab === "admins" ? "Manage admins" : tab[0].toUpperCase() + tab.slice(1)}</h1></div><div className="admin-user"><span>{session.user.email}</span><button onClick={signOut}>Sign out</button></div></header>{message && <p className="admin-message" role="status">{message}</p>}{tab === "orders" && (() => {
     const totalOrders = data.orders.length;
     const pendingOrders = data.orders.filter(o => o.status === "pending_payment").length;
-    const confirmedOrders = data.orders.filter(o => o.status === "approved" || o.status === "processing").length;
     const completedOrders = data.orders.filter(o => o.status === "completed").length;
-    const totalRevenue = data.orders
-      .filter(o => o.status !== "cancelled")
-      .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
     const filteredOrders = data.orders.filter(order => {
       if (orderFilter !== "all" && order.status !== orderFilter) return false;
@@ -470,29 +489,7 @@ export default function AdminDashboard({ session, go }) {
 
     return (
       <div className="modern-orders-wrapper">
-        {/* KPI Summary Cards */}
-        <div className="order-kpi-grid">
-          <div className="order-kpi-card">
-            <span className="order-kpi-title">Total Orders</span>
-            <strong className="order-kpi-val">{totalOrders}</strong>
-            <span className="order-kpi-hint">All time placed</span>
-          </div>
-          <div className="order-kpi-card highlight-pending">
-            <span className="order-kpi-title">Awaiting Verification</span>
-            <strong className="order-kpi-val">{pendingOrders}</strong>
-            <span className="order-kpi-hint">Requires manual check</span>
-          </div>
-          <div className="order-kpi-card highlight-confirmed">
-            <span className="order-kpi-title">In Progress / Confirmed</span>
-            <strong className="order-kpi-val">{confirmedOrders}</strong>
-            <span className="order-kpi-hint">Ready for fulfillment</span>
-          </div>
-          <div className="order-kpi-card highlight-revenue">
-            <span className="order-kpi-title">Store Volume</span>
-            <strong className="order-kpi-val">PKR {totalRevenue.toLocaleString()}</strong>
-            <span className="order-kpi-hint">Active order value</span>
-          </div>
-        </div>
+        <SalesAnalytics orders={data.orders}/>
 
         {/* Toolbar: Search & Status Filters */}
         <div className="orders-action-bar">
@@ -605,6 +602,7 @@ export default function AdminDashboard({ session, go }) {
                       {order.order_items && order.order_items.length > 0 ? (
                         order.order_items.map((item, idx) => (
                           <div key={item.id || idx} className="order-purchased-item">
+                            {item.product_image_url && <img className="admin-order-item-image" src={item.product_image_url} alt=""/>}
                             <span className="item-title">{item.product_name}</span>
                             <span className="item-qty-badge">× {item.quantity}</span>
                             <span className="item-subtotal">
@@ -620,6 +618,7 @@ export default function AdminDashboard({ session, go }) {
                         </div>
                       )}
                     </div>
+                    {order.paymentProofUrl ? <div className="admin-payment-proof"><div><strong>Advance payment screenshot</strong><small>Open the screenshot, verify the transfer, then approve the order.</small></div><a href={order.paymentProofUrl} target="_blank" rel="noreferrer"><img src={order.paymentProofUrl} alt="Customer payment screenshot"/><span>View full image ↗</span></a>{order.status === "pending_payment" && <button type="button" className="approve-payment-button" onClick={() => updateOrder(order.id, "approved")}>Approve payment</button>}</div> : order.status === "pending_payment" && order.payment_proof_required ? <p className="admin-proof-pending">Waiting for the customer to upload a payment screenshot in My Orders.</p> : null}
                   </div>
                 </div>
 
@@ -721,7 +720,7 @@ export default function AdminDashboard({ session, go }) {
     </div>,
     document.body
   )}
-  {tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "reviews" && (
+  {tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "website settings" && <WebsiteSettingsAdmin notice={setMessage}/>}  {tab === "reviews" && (
     <div className="admin-reviews-section">
       <div className="admin-section-toolbar">
         <div>

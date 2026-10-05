@@ -20,20 +20,42 @@ create table if not exists public.products (
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+create table if not exists public.store_settings (
+  id boolean primary key default true check (id = true),
+  easypaisa_number text not null default '03234724373',
+  easypaisa_name text not null default 'Muhammad Usama',
+  jazzcash_number text not null default '03234724373',
+  jazzcash_name text not null default 'Muhammad Usama',
+  bank_name text not null default 'HBL',
+  bank_account text not null default '06147900940851',
+  bank_account_name text not null default 'Muhammad Usama',
+  website_config jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+insert into public.store_settings (id) values (true) on conflict (id) do nothing;
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   customer_name text not null, phone text not null, address text not null,
   payment_method text not null check (payment_method in ('easypaisa','jazzcash','bank_transfer','cod')),
   status text not null default 'pending_payment' check (status in ('pending_payment','approved','processing','completed','cancelled')),
-  total numeric(12,2) not null check (total >= 0), created_at timestamptz not null default now()
+  total numeric(12,2) not null check (total >= 0), created_at timestamptz not null default now(), confirmed_at timestamptz,
+  payment_proof_required boolean not null default false
 );
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
   product_id uuid references public.products(id) on delete set null,
-  product_name text not null, unit_price numeric(12,2) not null,
-  quantity integer not null default 1 check (quantity > 0)
+    product_name text not null, product_image_url text, unit_price numeric(12,2) not null,
+    quantity integer not null default 1 check (quantity > 0)
+  );
+alter table public.order_items add column if not exists product_image_url text;
+create table if not exists public.order_payment_proofs (
+  order_id uuid primary key references public.orders(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  storage_path text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 create table if not exists public.reviews (
   id uuid primary key default gen_random_uuid(),
@@ -64,8 +86,10 @@ begin if not public.is_admin() then raise exception 'Only an admin can grant adm
 
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
+alter table public.store_settings enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
+alter table public.order_payment_proofs enable row level security;
 alter table public.reviews enable row level security;
 
 drop policy if exists "profiles own or admin" on public.profiles;
@@ -76,6 +100,13 @@ create policy "products public read" on public.products for select using (is_act
 
 drop policy if exists "products admin write" on public.products;
 create policy "products admin write" on public.products for all using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "store settings public read" on public.store_settings;
+create policy "store settings public read" on public.store_settings for select to anon, authenticated using (true);
+drop policy if exists "store settings admin update" on public.store_settings;
+create policy "store settings admin update" on public.store_settings for update to authenticated using (public.is_admin()) with check (public.is_admin());
+grant select on public.store_settings to anon, authenticated;
+grant update on public.store_settings to authenticated;
 
 drop policy if exists "orders own or admin read" on public.orders;
 create policy "orders own or admin read" on public.orders for select using (user_id=auth.uid() or public.is_admin());
@@ -97,6 +128,22 @@ create policy "items customer create" on public.order_items for insert with chec
 
 drop policy if exists "items admin delete" on public.order_items;
 create policy "items admin delete" on public.order_items for delete using (public.is_admin());
+
+drop policy if exists "order proof owner or admin read" on public.order_payment_proofs;
+create policy "order proof owner or admin read" on public.order_payment_proofs for select to authenticated using (user_id=auth.uid() or public.is_admin());
+drop policy if exists "order owner add payment proof" on public.order_payment_proofs;
+create policy "order owner add payment proof" on public.order_payment_proofs for insert to authenticated with check (user_id=auth.uid() and exists(select 1 from public.orders o where o.id=order_id and o.user_id=auth.uid()));
+drop policy if exists "order owner replace payment proof" on public.order_payment_proofs;
+create policy "order owner replace payment proof" on public.order_payment_proofs for update to authenticated using (user_id=auth.uid()) with check (user_id=auth.uid() and exists(select 1 from public.orders o where o.id=order_id and o.user_id=auth.uid()));
+grant select, insert, update on public.order_payment_proofs to authenticated;
+
+insert into storage.buckets (id, name, public) values ('payment-proofs', 'payment-proofs', false) on conflict (id) do update set public=false;
+drop policy if exists "order owners upload payment proof files" on storage.objects;
+create policy "order owners upload payment proof files" on storage.objects for insert to authenticated with check (bucket_id='payment-proofs' and (storage.foldername(name))[1]=auth.uid()::text and exists(select 1 from public.orders o where o.id=((storage.foldername(name))[2])::uuid and o.user_id=auth.uid()));
+drop policy if exists "order owners and admins view payment proof files" on storage.objects;
+create policy "order owners and admins view payment proof files" on storage.objects for select to authenticated using (bucket_id='payment-proofs' and ((storage.foldername(name))[1]=auth.uid()::text or public.is_admin()));
+drop policy if exists "order owners and admins remove payment proof files" on storage.objects;
+create policy "order owners and admins remove payment proof files" on storage.objects for delete to authenticated using (bucket_id='payment-proofs' and ((storage.foldername(name))[1]=auth.uid()::text or public.is_admin()));
 
 drop policy if exists "reviews public read" on public.reviews;
 create policy "reviews public read" on public.reviews for select using (true);
