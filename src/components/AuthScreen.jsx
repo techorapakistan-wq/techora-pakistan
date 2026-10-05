@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 const GoogleMark = () => <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.23a4.47 4.47 0 0 1-1.94 2.93v2.77h3.15c1.84-1.7 2.91-4.2 2.91-7.71Z"/><path fill="#34A853" d="M12 21.73c2.62 0 4.81-.87 6.42-2.36l-3.15-2.77c-.87.58-1.99.93-3.27.93-2.51 0-4.64-1.7-5.4-3.98H3.34v2.86A9.7 9.7 0 0 0 12 21.73Z"/><path fill="#FBBC05" d="M6.6 13.55A5.83 5.83 0 0 1 6.3 12c0-.54.1-1.06.3-1.55V7.59H3.34A9.7 9.7 0 0 0 2.3 12c0 1.57.38 3.05 1.04 4.41l3.26-2.86Z"/><path fill="#EA4335" d="M12 6.47c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.81 3.54 14.62 2.27 12 2.27a9.7 9.7 0 0 0-8.66 5.32L6.6 10.45c.76-2.28 2.89-3.98 5.4-3.98Z"/></svg>;
-export default function AuthScreen({ go, mode = "customer" }) {
+export default function AuthScreen({ go, mode = "customer", redirectTo = "/" }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isRegister, setIsRegister] = useState(false);
@@ -12,7 +12,7 @@ export default function AuthScreen({ go, mode = "customer" }) {
   const oauthLogin = async (provider) => {
     if (!supabase) return;
     setStatus("Opening " + (provider === "google" ? "Google" : "Apple") + " sign-in…");
-    const redirectPath = admin ? "/admin-login" : "/";
+    const redirectPath = admin ? "/admin-login" : redirectTo;
     const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin + redirectPath } });
     if (error) setStatus(error.message);
   };
@@ -21,11 +21,11 @@ export default function AuthScreen({ go, mode = "customer" }) {
     if (!supabase) return;
     setSubmitting(true); setStatus("");
     const result = isRegister
-      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + "/" } })
+      ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin + redirectTo } })
       : await supabase.auth.signInWithPassword({ email, password });
     if (result.error) setStatus(result.error.message);
     else if (isRegister) setStatus(result.data.session ? "Account created — you are signed in." : "Account created — check your inbox to verify your email, then sign in.");
-    else go("/");
+    else go(redirectTo);
     setSubmitting(false);
   };
   const authButtons = <div className="oauth-buttons">
