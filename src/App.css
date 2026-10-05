@@ -649,10 +649,23 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 .website-video-setting{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px;border:1px solid #dce9f7;border-radius:10px;background:#fff}
 .website-video-toggle{grid-column:1/-1;display:flex;align-items:center;gap:8px;color:#07336c!important}
 .website-video-toggle input{accent-color:#087cff}
+.website-video-settings-title{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.website-video-settings-title>div{min-width:0}
+.website-video-add,.website-video-remove{border:1px solid #cbdff4;border-radius:999px;background:#f3f8ff;color:#0757ac;padding:9px 13px;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}
+.website-video-add:hover,.website-video-remove:hover{background:#087cff;border-color:#087cff;color:#fff}
+.website-video-remove{grid-column:1/-1;justify-self:end;padding:7px 11px;color:#52657e}
+.website-videos-empty{grid-column:1/-1;margin:0;color:#607897;font-size:12px}
 .website-settings-save{align-self:flex-start;min-height:42px}
 .website-settings-loading{margin:0;color:#607897;font-size:12px}
 @media(max-width:900px){.sales-analysis-grid{grid-template-columns:1fr}.sales-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sales-analytics-heading{align-items:start;flex-direction:column}.sales-range-controls{width:100%}.sales-range-controls label{flex:1}.sales-range-controls input{width:100%;box-sizing:border-box}.customer-order-payment{grid-template-columns:1fr auto}.customer-order-payment>div{grid-column:1/-1}.video-showcase-grid{gap:13px}}
 @media(max-width:600px){.video-showcase{padding-inline:14px}.video-showcase>.shop-heading{display:block}.video-showcase>.shop-heading>p{margin:10px 0 0}.video-showcase-grid{grid-template-columns:1fr}.video-showcase-copy{padding:16px}.video-showcase-copy h3{font-size:18px}.sales-kpi-grid{grid-template-columns:1fr 1fr}.sales-kpi-grid .order-kpi-card{padding:13px}.sales-kpi-grid .order-kpi-val{font-size:18px}.sales-quick-ranges{width:100%}.sales-quick-ranges button{flex:1}.sales-chart-card,.sales-products-card{padding:12px}.sales-panel-heading{flex-direction:column}.sales-chart-svg{min-height:160px}.sales-products-table{min-width:410px}.customer-order-heading{align-items:flex-start;flex-wrap:wrap;padding:13px}.customer-order-heading>b{margin-left:0}.customer-order-item{grid-template-columns:46px minmax(0,1fr) auto!important;gap:8px;padding:10px 0}.customer-order-item img{width:46px;height:46px}.customer-order-payment{grid-template-columns:1fr;padding:13px}.customer-order-payment>div{grid-column:auto}.payment-proof-preview-link,.payment-proof-upload{justify-self:start}.order-success-items article{grid-template-columns:48px minmax(0,1fr);gap:9px}.order-success-items img{width:48px;height:48px}.order-success-items article>b{grid-column:2}.order-success-card>header{padding:14px}.order-success-items{padding:8px 14px 14px}.order-success-card>.order-status{margin-left:14px}.website-settings-form{padding:16px!important}.website-settings-heading{flex-direction:column}.website-setting-group,.website-video-setting{grid-template-columns:1fr;padding:13px}.website-setting-group>h3,.website-video-settings-title,.website-video-toggle{grid-column:auto}.website-settings-save{width:100%}}
+@media(max-width:600px){.website-video-settings-title{align-items:flex-start;flex-direction:column}.website-video-add{width:100%}}
+@media(max-width:900px){.desktop-nav-action{display:none!important}}
+.product-image.is-sold-out img,.product-detail-image.is-sold-out img{filter:grayscale(.3) brightness(.72)}
+.unavailable{top:50%;right:auto;bottom:auto;left:50%;transform:translate(-50%,-50%);border:1px solid rgba(255,255,255,.7);border-radius:999px;background:rgba(4,20,45,.93);padding:10px 16px;font-size:11px;font-weight:800;letter-spacing:.12em}
+.product-detail-image{position:relative}
+.product-sold-out-overlay{position:absolute;top:20px;left:20px;z-index:2;border:1px solid rgba(255,255,255,.7);border-radius:999px;background:rgba(4,20,45,.93);color:#fff;padding:10px 16px;font-size:11px;font-weight:800;letter-spacing:.12em}
+@media(max-width:560px){.product-sold-out-overlay{top:12px;left:12px;padding:8px 12px;font-size:9px}.unavailable{font-size:9px;padding:8px 12px}}
 
 /* ═══════════════════════════════════════════════════════════════
    ADMIN ORDERS & FULFILLMENT EXECUTIVE DASHBOARD

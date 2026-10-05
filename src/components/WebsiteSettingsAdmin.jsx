@@ -23,6 +23,16 @@ export default function WebsiteSettingsAdmin({ notice }) {
     videos: current.videos.map((video, videoIndex) => videoIndex === index ? { ...video, [key]: value } : video),
   }));
 
+  const addVideo = () => setForm((current) => ({
+    ...current,
+    videos: [...current.videos, { enabled: true, title: "", description: "", url: "", poster: "", sourceLabel: "", sourceUrl: "" }],
+  }));
+
+  const removeVideo = (index) => setForm((current) => ({
+    ...current,
+    videos: current.videos.filter((_, videoIndex) => videoIndex !== index),
+  }));
+
   const save = async (event) => {
     event.preventDefault();
     if (saving) return;
@@ -44,9 +54,11 @@ export default function WebsiteSettingsAdmin({ notice }) {
       <label className="admin-field"><span>WhatsApp number</span><input required inputMode="tel" value={form.whatsapp} onChange={(event) => setForm({ ...form, whatsapp: event.target.value })} placeholder="923001234567"/><small>Include the country code. You can type the number with or without spaces or +.</small></label>
     </section>
     <section className="website-setting-group">
-      <div className="website-video-settings-title"><div><h3>Homepage videos</h3><p>Two short clips appear on the customer homepage. Use a direct MP4 link or a YouTube/Vimeo link.</p></div></div>
+      <div className="website-video-settings-title"><div><h3>Homepage videos</h3><p>Add, edit, or remove clips shown on the customer homepage. Use a direct MP4 link or a YouTube/Vimeo link.</p></div><button type="button" className="website-video-add" onClick={addVideo}>+ Add video</button></div>
+      {!form.videos.length && <p className="website-videos-empty">No homepage videos yet. Add one whenever you are ready.</p>}
       {form.videos.map((video, index) => <article className="website-video-setting" key={index}>
         <label className="website-video-toggle"><input type="checkbox" checked={video.enabled !== false} onChange={(event) => updateVideo(index, "enabled", event.target.checked)}/><strong>Show video {index + 1}</strong></label>
+        <button type="button" className="website-video-remove" onClick={() => removeVideo(index)} aria-label={`Remove video ${index + 1}`}>Remove video</button>
         <label className="admin-field"><span>Video title</span><input maxLength={70} value={video.title || ""} onChange={(event) => updateVideo(index, "title", event.target.value)} placeholder="A closer look at the product"/></label>
         <label className="admin-field"><span>Video link</span><input type="url" value={video.url || ""} onChange={(event) => updateVideo(index, "url", event.target.value)} placeholder="https://…"/><small>For MP4 clips, use a public video URL. YouTube and Vimeo links are also supported.</small></label>
         <label className="admin-field"><span>Short caption</span><input maxLength={140} value={video.description || ""} onChange={(event) => updateVideo(index, "description", event.target.value)} placeholder="Short supporting text"/></label>

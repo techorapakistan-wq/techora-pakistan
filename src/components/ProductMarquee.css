@@ -6,9 +6,12 @@
 .catalog-marquee-track{display:flex;width:max-content;animation:catalog-right 38s linear infinite;will-change:transform}
 .catalog-marquee-group{display:flex;gap:14px;padding-right:14px}
 .catalog-marquee-group>button{width:230px;display:grid;grid-template-columns:82px 1fr;align-items:center;gap:12px;border:1px solid #eadbed;border-radius:16px;background:#fff;padding:10px;text-align:left;color:#302b33;box-shadow:0 8px 20px rgba(69,29,73,.07)}
-.catalog-marquee-group img{width:82px;height:82px;border-radius:11px;object-fit:cover;background:#f6eff9}
-.catalog-marquee-group span{display:grid;gap:7px}.catalog-marquee-group strong{font-size:12px;line-height:1.3}.catalog-marquee-group small{color:#b71582;font-weight:700}
+.catalog-marquee-image{position:relative;display:block;width:82px;height:82px;border-radius:11px;overflow:hidden;background:#f6eff9}
+.catalog-marquee-group img{display:block;width:82px;height:82px;border-radius:11px;object-fit:cover;background:#f6eff9}
+.catalog-marquee-image.is-sold-out img{filter:grayscale(.35) brightness(.7)}
+.catalog-marquee-sold-out{position:absolute!important;inset:0;display:grid!important;place-items:center;background:rgba(7,27,55,.25);color:#fff;font-size:8px;font-weight:800;letter-spacing:.08em;text-shadow:0 1px 4px #071b37}
+.catalog-marquee-group>button>span:last-child{display:grid;gap:7px}.catalog-marquee-group strong{font-size:12px;line-height:1.3}.catalog-marquee-group small{color:#b71582;font-weight:700}
 .catalog-marquee-viewport:hover .catalog-marquee-track,.catalog-marquee-viewport:focus-within .catalog-marquee-track,.catalog-marquee-viewport.paused .catalog-marquee-track{animation-play-state:paused}
 @keyframes catalog-right{from{transform:translateX(-50%)}to{transform:translateX(0)}}
-@media(max-width:560px){.catalog-marquee{padding:42px 14px}.catalog-marquee-heading{align-items:start}.catalog-marquee-heading h2{font-size:30px}.catalog-marquee-viewport{margin-inline:-14px}.catalog-marquee-group>button{width:190px;grid-template-columns:65px 1fr}.catalog-marquee-group img{width:65px;height:65px}}
+@media(max-width:560px){.catalog-marquee{padding:42px 14px}.catalog-marquee-heading{align-items:start}.catalog-marquee-heading h2{font-size:30px}.catalog-marquee-viewport{margin-inline:-14px}.catalog-marquee-group>button{width:190px;grid-template-columns:65px 1fr}.catalog-marquee-image,.catalog-marquee-group img{width:65px;height:65px}}
 @media(prefers-reduced-motion:reduce){.catalog-marquee-track{animation:none}.catalog-marquee-group[aria-hidden="true"]{display:none}.catalog-marquee-viewport{overflow-x:auto}}

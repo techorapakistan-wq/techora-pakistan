@@ -31,9 +31,9 @@ export function normalizeWebsiteSettings(value) {
     ...saved,
     announcement: typeof saved.announcement === "string" ? saved.announcement : defaultWebsiteSettings.announcement,
     whatsapp: typeof saved.whatsapp === "string" ? saved.whatsapp : defaultWebsiteSettings.whatsapp,
-    videos: defaultWebsiteSettings.videos.map((fallback, index) => ({
-      ...fallback,
-      ...(savedVideos[index] && typeof savedVideos[index] === "object" ? savedVideos[index] : {}),
+    videos: savedVideos.map((video, index) => ({
+      ...(defaultWebsiteSettings.videos[index] || {}),
+      ...(video && typeof video === "object" ? video : {}),
     })),
   };
 }
