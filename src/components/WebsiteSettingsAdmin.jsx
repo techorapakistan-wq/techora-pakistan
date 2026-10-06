@@ -1,27 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { defaultWebsiteSettings, normalizeWebsiteSettings } from "../data/siteSettings";
+import { defaultHeroImages, defaultWebsiteSettings, normalizeWebsiteSettings } from "../data/siteSettings";
 
 const emptyPromo={code:"",discountType:"percent",value:"",expiresAt:""};
 const emptyPaymentMethod={name:"",accountName:"",accountNumber:""};
 const makeId=()=>globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 const filePath=(file,folder)=>folder+"/"+Date.now()+"-"+Math.random().toString(36).slice(2,8)+"-"+file.name.toLowerCase().replace(/[^a-z0-9._-]/g,"-");
 
-export default function WebsiteSettingsAdmin({ notice }) {
+const collectStoragePaths=(settings)=>new Set([
+  ...(settings.heroImages||[]).map(image=>image?.storagePath).filter(Boolean),
+  ...(settings.videos||[]).map(video=>video?.storagePath).filter(Boolean),
+  ...(settings.paymentMethods||[]).map(method=>method?.storagePath).filter(Boolean),
+]);
+
+export default function WebsiteSettingsAdmin({ notice, mode="settings" }) {
+  const isAppearance=mode==="appearance";
   const [form, setForm] = useState(defaultWebsiteSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(-1);
+  const [uploadingHero, setUploadingHero] = useState(-1);
   const [newPromo,setNewPromo]=useState(emptyPromo);
   const [newMethod,setNewMethod]=useState(emptyPaymentMethod);
   const [methodLogo,setMethodLogo]=useState(null);
   const [addingMethod,setAddingMethod]=useState(false);
+  const savedSettings=useRef(defaultWebsiteSettings);
 
   useEffect(() => {
     let active = true;
     supabase.from("store_settings").select("website_config").eq("id", true).single().then(({ data, error }) => {
       if (!active) return;
-      if (data?.website_config) setForm(normalizeWebsiteSettings(data.website_config));
+      const normalized=normalizeWebsiteSettings(data?.website_config);
+      setForm(normalized);
+      savedSettings.current=normalized;
       if (error) notice(error.message);
       setLoading(false);
     });
@@ -38,10 +49,26 @@ export default function WebsiteSettingsAdmin({ notice }) {
     videos: [...current.videos, { enabled: true, title: "", description: "", url: "", poster: "", sourceLabel: "", sourceUrl: "" }],
   }));
 
-  const removeVideo = async (index) => {
-    const video=form.videos[index];
+  const removeVideo = (index) => {
     setForm((current) => ({ ...current, videos: current.videos.filter((_, videoIndex) => videoIndex !== index) }));
-    if(video?.storagePath) await supabase.storage.from("store-media").remove([video.storagePath]);
+  };
+
+  const updateHeroImage=(index,patch)=>setForm(current=>({...current,heroImages:current.heroImages.map((image,imageIndex)=>imageIndex===index?{...image,...patch}:image)}));
+
+  const uploadHeroImage=async(index,file)=>{
+    if(!file)return;
+    const extension=file.name.split(".").pop()?.toLowerCase();
+    const imageType=file.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp"}[extension]||"");
+    if(!["image/jpeg","image/png","image/webp"].includes(imageType)){notice("Choose a JPG, PNG, or WebP image.");return;}
+    if(file.size>6*1024*1024){notice("Hero images must be 6 MB or smaller.");return;}
+    setUploadingHero(index);
+    const path=filePath(file,"homepage-hero");
+    const {error}=await supabase.storage.from("store-media").upload(path,file,{upsert:false,contentType:imageType,cacheControl:"3600"});
+    if(error){notice(error.message);setUploadingHero(-1);return;}
+    const url=supabase.storage.from("store-media").getPublicUrl(path).data.publicUrl;
+    updateHeroImage(index,{url,storagePath:path});
+    notice("Hero image uploaded. Save appearance to publish it.");
+    setUploadingHero(-1);
   };
 
   const uploadVideo = async (index,file) => {
@@ -56,7 +83,7 @@ export default function WebsiteSettingsAdmin({ notice }) {
     if(error){notice(error.message);setUploadingVideo(-1);return;}
     const url=supabase.storage.from("store-media").getPublicUrl(path).data.publicUrl;
     setForm(current=>({...current,videos:current.videos.map((video,videoIndex)=>videoIndex===index?{...video,url,storagePath:path,mediaType:"upload"}:video)}));
-    notice("Video uploaded. Save website settings to publish it.");
+    notice(`Video uploaded. Save ${isAppearance?"appearance":"website settings"} to publish it.`);
     setUploadingVideo(-1);
   };
 
@@ -74,17 +101,17 @@ export default function WebsiteSettingsAdmin({ notice }) {
     event.preventDefault();
     if(!newMethod.name.trim()||!newMethod.accountName.trim()||!newMethod.accountNumber.trim()){notice("Add the payment name, account title, and account number.");return;}
     setAddingMethod(true);
-    let logoUrl="";
+    let logoUrl="",storagePath="";
     if(methodLogo){
       const extension=methodLogo.name.split(".").pop()?.toLowerCase();
       const imageType=methodLogo.type||({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp"}[extension]||"");
       if(!["image/jpeg","image/png","image/webp"].includes(imageType)||methodLogo.size>10*1024*1024){notice("Choose a JPG, PNG, or WebP logo under 10 MB.");setAddingMethod(false);return;}
-      const path=filePath(methodLogo,"payment-methods");
-      const {error}=await supabase.storage.from("store-media").upload(path,methodLogo,{upsert:false,contentType:imageType,cacheControl:"3600"});
+      storagePath=filePath(methodLogo,"payment-methods");
+      const {error}=await supabase.storage.from("store-media").upload(storagePath,methodLogo,{upsert:false,contentType:imageType,cacheControl:"3600"});
       if(error){notice(error.message);setAddingMethod(false);return;}
-      logoUrl=supabase.storage.from("store-media").getPublicUrl(path).data.publicUrl;
+      logoUrl=supabase.storage.from("store-media").getPublicUrl(storagePath).data.publicUrl;
     }
-    setForm(current=>({...current,paymentMethods:[...current.paymentMethods,{id:makeId(),...newMethod,name:newMethod.name.trim(),accountName:newMethod.accountName.trim(),accountNumber:newMethod.accountNumber.trim(),logoUrl,enabled:true}]}));
+    setForm(current=>({...current,paymentMethods:[...current.paymentMethods,{id:makeId(),...newMethod,name:newMethod.name.trim(),accountName:newMethod.accountName.trim(),accountNumber:newMethod.accountNumber.trim(),logoUrl,storagePath,enabled:true}]}));
     setNewMethod(emptyPaymentMethod);
     setMethodLogo(null);
     setAddingMethod(false);
@@ -93,18 +120,51 @@ export default function WebsiteSettingsAdmin({ notice }) {
   const save = async (event) => {
     event.preventDefault();
     if (saving) return;
+    const hasPaymentMethod=Object.values(form.paymentVisibility||{}).some(Boolean)||(form.paymentMethods||[]).some(method=>method.enabled!==false);
+    if(isAppearance&&!hasPaymentMethod){notice("Keep at least one payment method active before saving.");return;}
     setSaving(true);
+    const normalized=normalizeWebsiteSettings(form);
     const { error } = await supabase.from("store_settings").update({
-      website_config: normalizeWebsiteSettings(form),
+      website_config: normalized,
       updated_at: new Date().toISOString(),
     }).eq("id", true);
-    notice(error?.message || "Website settings saved.");
+    if(error){notice(error.message);setSaving(false);return;}
+    const oldPaths=collectStoragePaths(savedSettings.current);
+    const currentPaths=collectStoragePaths(normalized);
+    const removedPaths=[...oldPaths].filter(path=>!currentPaths.has(path));
+    savedSettings.current=normalized;
+    if(removedPaths.length){
+      const {error:cleanupError}=await supabase.storage.from("store-media").remove(removedPaths);
+      notice(cleanupError?`Changes saved, but some old uploads could not be deleted: ${cleanupError.message}`:isAppearance?"Appearance saved and old uploads removed.":"Website settings saved and old uploads removed.");
+    }else notice(isAppearance?"Appearance saved.":"Website settings saved.");
     setSaving(false);
   };
 
+  const paymentVisibility=form.paymentVisibility||defaultWebsiteSettings.paymentVisibility;
+  const hasPaymentMethod=Object.values(paymentVisibility).some(Boolean)||(form.paymentMethods||[]).some(method=>method.enabled!==false);
+
   return <form className="admin-product-form website-settings-form" onSubmit={save}>
-    <header className="website-settings-heading"><div><p className="eyebrow">STOREFRONT CONTROLS</p><h2>Website settings</h2><p>Manage delivery, advance payment, promotions, payment accounts, and homepage videos.</p></div><span>LIVE STORE SETTINGS</span></header>
+    <header className="website-settings-heading"><div><p className="eyebrow">STOREFRONT CONTROLS</p><h2>{isAppearance?"Appearance":"Website settings"}</h2><p>{isAppearance?"Update homepage images, videos, and the payment methods customers can use.":"Manage store messages, delivery charges, advance payment, and promotions."}</p></div><span>LIVE STORE SETTINGS</span></header>
     {loading && <p className="website-settings-loading">Loading saved website settings…</p>}
+    {isAppearance&&<>
+    <section className="website-setting-group appearance-hero-section">
+      <div className="website-video-settings-title"><div><h3>Homepage hero images</h3><p>Replace an image with a URL or upload one from your gallery. Remove it to show a clean colour background.</p></div></div>
+      <div className="appearance-hero-grid">{form.heroImages.map((image,index)=><article className="appearance-hero-card" key={index}>
+        <header><strong>Hero slide {index+1}</strong><span>{image.url?"Image set":"No image"}</span></header>
+        {image.url?<img className="appearance-hero-preview" src={image.url} alt={`Hero slide ${index+1} preview`}/>:<div className="appearance-hero-empty">Background image removed</div>}
+        <label className="admin-field"><span>Image URL</span><input type="url" value={image.url||""} onChange={event=>updateHeroImage(index,{url:event.target.value,storagePath:""})} placeholder="https://…"/></label>
+        <div className="appearance-hero-actions"><label className="website-video-add appearance-upload-label"><span>{uploadingHero===index?"Uploading image…":"Upload from gallery"}</span><input accept="image/jpeg,image/png,image/webp" type="file" disabled={uploadingHero===index} onChange={event=>{uploadHeroImage(index,event.target.files?.[0]);event.target.value="";}}/></label><button type="button" className="website-video-remove" onClick={()=>updateHeroImage(index,{url:"",storagePath:""})} disabled={!image.url}>Remove image</button><button type="button" className="appearance-default-button" onClick={()=>updateHeroImage(index,{url:defaultHeroImages[index],storagePath:""})}>Restore default</button></div>
+      </article>)}</div>
+    </section>
+    <section className="website-setting-group">
+      <h3>Standard payment methods</h3>
+      <p className="appearance-payment-help">Choose which built-in accounts appear at checkout. Update account numbers and names in Payment details.</p>
+      <div className="appearance-payment-toggles">
+        {[["easypaisa","EasyPaisa"],["sadapay","SadaPay"],["bank_transfer","HBL bank transfer"]].map(([id,label])=><label key={id}><input type="checkbox" checked={paymentVisibility[id]!==false} onChange={event=>setForm(current=>({...current,paymentVisibility:{...current.paymentVisibility,[id]:event.target.checked}}))}/><span><strong>{label}</strong><small>{paymentVisibility[id]!==false?"Visible at checkout":"Hidden from checkout"}</small></span></label>)}
+      </div>
+    </section>
+    </>}
+    {!isAppearance&&<>
     <section className="website-setting-group">
       <h3>Customer-facing details</h3>
       <label className="admin-field"><span>Announcement bar</span><input maxLength={120} value={form.announcement} onChange={(event) => setForm({ ...form, announcement: event.target.value })} placeholder="Free shipping on orders over PKR 5,000"/><small>Leave blank to hide the message at the top of the storefront.</small></label>
@@ -120,6 +180,8 @@ export default function WebsiteSettingsAdmin({ notice }) {
       <div className="website-promo-create"><label className="admin-field"><span>Promo code</span><input value={newPromo.code} onChange={event=>setNewPromo({...newPromo,code:event.target.value})} placeholder="e.g. TECHORA10"/></label><label className="admin-field"><span>Discount type</span><select value={newPromo.discountType} onChange={event=>setNewPromo({...newPromo,discountType:event.target.value})}><option value="percent">Percent off</option><option value="fixed">Fixed PKR off</option></select></label><label className="admin-field"><span>{newPromo.discountType==="percent"?"Percent":"Discount amount (PKR)"}</span><input type="number" min="1" max={newPromo.discountType==="percent"?100:undefined} value={newPromo.value} onChange={event=>setNewPromo({...newPromo,value:event.target.value})} placeholder={newPromo.discountType==="percent"?"10":"500"}/></label><label className="admin-field"><span>Expiry date (optional)</span><input type="date" value={newPromo.expiresAt} onChange={event=>setNewPromo({...newPromo,expiresAt:event.target.value})}/></label><button type="button" className="button button-ink" onClick={addPromo}>Add promo</button></div>
       {form.promotions.length>0&&<div className="website-managed-list">{form.promotions.map(promo=><article key={promo.id}><div><strong>{promo.code}</strong><small>{promo.discountType==="percent"?promo.value+"% off":"PKR "+Number(promo.value).toLocaleString()+" off"}{promo.expiresAt?" · expires "+promo.expiresAt:""}</small></div><label><input type="checkbox" checked={promo.active!==false} onChange={event=>setForm(current=>({...current,promotions:current.promotions.map(item=>item.id===promo.id?{...item,active:event.target.checked}:item)}))}/> Active</label><button type="button" onClick={()=>setForm(current=>({...current,promotions:current.promotions.filter(item=>item.id!==promo.id)}))}>Remove</button></article>)}</div>}
     </section>
+    </>}
+    {isAppearance&&<>
     <section className="website-setting-group">
       <div className="website-video-settings-title"><div><h3>Additional payment methods</h3><p>Add bank or wallet details that customers can select at checkout. The standard EasyPaisa, SadaPay, and HBL accounts remain available.</p></div></div>
       <div className="website-payment-create"><label className="admin-field"><span>Method name</span><input value={newMethod.name} onChange={event=>setNewMethod({...newMethod,name:event.target.value})} placeholder="e.g. Meezan Bank"/></label><label className="admin-field"><span>Account title</span><input value={newMethod.accountName} onChange={event=>setNewMethod({...newMethod,accountName:event.target.value})} placeholder="Account holder name"/></label><label className="admin-field"><span>Account number / IBAN</span><input value={newMethod.accountNumber} onChange={event=>setNewMethod({...newMethod,accountNumber:event.target.value})} placeholder="Account details"/></label><label className="admin-field website-method-logo"><span>Logo image (optional)</span><input accept="image/jpeg,image/png,image/webp" type="file" onChange={event=>setMethodLogo(event.target.files?.[0]||null)}/></label><button type="button" className="button button-ink" onClick={addPaymentMethod} disabled={addingMethod}>{addingMethod?"Adding…":"Add payment method"}</button></div>
@@ -140,6 +202,8 @@ export default function WebsiteSettingsAdmin({ notice }) {
         <label className="admin-field"><span>Video credit link (optional)</span><input type="url" value={video.sourceUrl || ""} onChange={(event) => updateVideo(index, "sourceUrl", event.target.value)} placeholder="https://…"/></label>
       </article>)}
     </section>
-    <button className="button button-ink website-settings-save" disabled={saving || loading}>{saving ? "Saving settings…" : "Save website settings"}</button>
+    </>}
+    {isAppearance&&!hasPaymentMethod&&<p className="appearance-payment-warning">Add or turn on at least one payment method before saving these changes.</p>}
+    <button className="button button-ink website-settings-save" disabled={saving || loading || (isAppearance&&!hasPaymentMethod)}>{saving ? "Saving settings…" : isAppearance?"Save appearance":"Save website settings"}</button>
   </form>;
 }

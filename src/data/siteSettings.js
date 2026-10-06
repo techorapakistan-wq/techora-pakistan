@@ -1,3 +1,10 @@
+export const defaultHeroImages = [
+  "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=2000&q=85",
+  "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=2000&q=85",
+  "https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?auto=format&fit=crop&w=2000&q=85",
+  "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=2000&q=85",
+];
+
 export const defaultWebsiteSettings = {
   announcement: "Free shipping on orders over PKR 5,000",
   whatsapp: "923229701332",
@@ -5,6 +12,8 @@ export const defaultWebsiteSettings = {
   paymentPolicy: "full",
   promotions: [],
   paymentMethods: [],
+  paymentVisibility: { easypaisa: true, sadapay: true, bank_transfer: true },
+  heroImages: defaultHeroImages.map((url) => ({ url, storagePath: "" })),
   videos: [
     {
       enabled: true,
@@ -30,6 +39,7 @@ export const defaultWebsiteSettings = {
 export function normalizeWebsiteSettings(value) {
   const saved = value && typeof value === "object" ? value : {};
   const savedVideos = Array.isArray(saved.videos) ? saved.videos : defaultWebsiteSettings.videos;
+  const savedHeroImages = Array.isArray(saved.heroImages) ? saved.heroImages : defaultWebsiteSettings.heroImages;
   return {
     ...defaultWebsiteSettings,
     ...saved,
@@ -39,6 +49,16 @@ export function normalizeWebsiteSettings(value) {
     paymentPolicy: ["full", "products", "delivery"].includes(saved.paymentPolicy) ? saved.paymentPolicy : defaultWebsiteSettings.paymentPolicy,
     promotions: Array.isArray(saved.promotions) ? saved.promotions.filter((promo) => promo && typeof promo === "object") : defaultWebsiteSettings.promotions,
     paymentMethods: Array.isArray(saved.paymentMethods) ? saved.paymentMethods.filter((method) => method && typeof method === "object") : defaultWebsiteSettings.paymentMethods,
+    paymentVisibility: {
+      ...defaultWebsiteSettings.paymentVisibility,
+      ...(saved.paymentVisibility && typeof saved.paymentVisibility === "object" ? saved.paymentVisibility : {}),
+    },
+    heroImages: Array.from({ length: defaultHeroImages.length }, (_, index) => {
+      const image = savedHeroImages[index];
+      if (image && typeof image === "object") return { url: typeof image.url === "string" ? image.url : "", storagePath: typeof image.storagePath === "string" ? image.storagePath : "" };
+      if (typeof image === "string") return { url: image, storagePath: "" };
+      return { url: defaultHeroImages[index], storagePath: "" };
+    }),
     videos: savedVideos.map((video, index) => ({
       ...(defaultWebsiteSettings.videos[index] || {}),
       ...(video && typeof video === "object" ? video : {}),
