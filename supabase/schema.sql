@@ -37,9 +37,18 @@ create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   customer_name text not null, phone text not null, address text not null,
-  payment_method text not null check (payment_method in ('easypaisa','jazzcash','bank_transfer','cod')),
+  payment_method text not null check (length(trim(payment_method)) between 1 and 80),
+  payment_method_label text,
   status text not null default 'pending_payment' check (status in ('pending_payment','approved','processing','completed','cancelled')),
-  total numeric(12,2) not null check (total >= 0), created_at timestamptz not null default now(), confirmed_at timestamptz,
+  total numeric(12,2) not null check (total >= 0),
+  items_subtotal numeric(12,2) not null default 0 check (items_subtotal >= 0),
+  delivery_fee numeric(12,2) not null default 0 check (delivery_fee >= 0),
+  promo_code text,
+  promo_discount numeric(12,2) not null default 0 check (promo_discount >= 0),
+  amount_due_now numeric(12,2) not null default 0 check (amount_due_now >= 0),
+  remaining_balance numeric(12,2) not null default 0 check (remaining_balance >= 0),
+  payment_policy text not null default 'full' check (payment_policy in ('full','products','delivery')),
+  created_at timestamptz not null default now(), confirmed_at timestamptz,
   stock_deducted_at timestamptz,
   payment_proof_required boolean not null default false
 );
@@ -236,6 +245,13 @@ create policy "order owner replace payment proof" on public.order_payment_proofs
 grant select, insert, update on public.order_payment_proofs to authenticated;
 
 insert into storage.buckets (id, name, public) values ('payment-proofs', 'payment-proofs', false) on conflict (id) do update set public=false;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('store-media', 'store-media', true, 104857600, array['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/ogg','video/quicktime'])
+on conflict (id) do update set public=true, file_size_limit=104857600, allowed_mime_types=excluded.allowed_mime_types;
+drop policy if exists "store media public read" on storage.objects;
+create policy "store media public read" on storage.objects for select to anon, authenticated using (bucket_id='store-media');
+drop policy if exists "store media admin manage" on storage.objects;
+create policy "store media admin manage" on storage.objects for all to authenticated using (bucket_id='store-media' and public.is_admin()) with check (bucket_id='store-media' and public.is_admin());
 drop policy if exists "order owners upload payment proof files" on storage.objects;
 create policy "order owners upload payment proof files" on storage.objects for insert to authenticated with check (bucket_id='payment-proofs' and (storage.foldername(name))[1]=auth.uid()::text and exists(select 1 from public.orders o where o.id=((storage.foldername(name))[2])::uuid and o.user_id=auth.uid()));
 drop policy if exists "order owners and admins view payment proof files" on storage.objects;

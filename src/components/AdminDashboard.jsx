@@ -586,9 +586,9 @@ export default function AdminDashboard({ session, go }) {
                       ● {statusLabel[order.status] || order.status}
                     </span>
                     <span className="order-payment-method-pill">
-                      💳 {paymentLabel[order.payment_method] || order.payment_method?.toUpperCase() || "ADVANCE"}
+                      💳 {order.payment_method_label || paymentLabel[order.payment_method] || order.payment_method?.toUpperCase() || "ADVANCE"}
                     </span>
-                    <strong className="order-price-bold">PKR {Number(order.total).toLocaleString()}</strong>
+                    <strong className="order-price-bold">PKR {Number(order.total).toLocaleString()}{Number(order.amount_due_now)>0&&order.amount_due_now!==order.total&&<small className="order-pay-now-label">Pay now: PKR {Number(order.amount_due_now).toLocaleString()}</small>}</strong>
                   </div>
                 </div>
 
@@ -740,7 +740,7 @@ export default function AdminDashboard({ session, go }) {
         <section className="product-photo-section" aria-labelledby="product-photos-title">
           <div className="product-editor-section-heading"><div><h3 id="product-photos-title">Product photos</h3><p>Upload several photos at once. Keep the current cover, or choose a new one below.</p></div></div>
           {form.image_url && <div className="current-cover-preview"><img src={form.image_url} alt="Current cover"/><span>Current cover</span></div>}
-          <label className="image-upload product-multi-upload"><span>Choose product photos</span><input accept="image/jpeg,image/png,image/webp" type="file" multiple onChange={(event) => { const files = Array.from(event.target.files || []); setImageFiles(files); setCoverFileIndex(form.image_url ? null : (files.length ? 0 : null)); event.target.value = ""; }}/><small>Select multiple JPG, PNG, or WebP images. For an existing product, new photos go into the gallery and the current cover stays selected unless you change it below.</small></label>
+          <label className="image-upload product-multi-upload"><span>{imageFiles.length ? "Add more product photos" : "Add product photos"}</span><input accept="image/jpeg,image/png,image/webp" type="file" multiple onChange={(event) => { const files = Array.from(event.target.files || []); const additions = files.filter((file) => !imageFiles.some((saved) => saved.name === file.name && saved.size === file.size && saved.lastModified === file.lastModified)); setImageFiles([...imageFiles, ...additions]); if (!form.image_url && coverFileIndex === null && imageFiles.length === 0 && additions.length) setCoverFileIndex(0); event.target.value = ""; }}/><small>Select multiple JPG, PNG, or WebP images. For an existing product, new photos go into the gallery and the current cover stays selected unless you change it below.</small></label>
           {imageFiles.length > 0 && <div className="selected-photo-list">{form.image_url && <label className="selected-photo-row"><input type="radio" name="cover-photo" checked={coverFileIndex === null} onChange={() => setCoverFileIndex(null)}/><span><strong>Keep current cover</strong><small>Current product photo</small></span></label>}{imageFiles.map((file, index) => <label key={file.name + file.lastModified + index} className="selected-photo-row"><input type="radio" name="cover-photo" checked={coverFileIndex === index} onChange={() => setCoverFileIndex(index)}/><span><strong>{index === coverFileIndex ? "Cover photo" : "Gallery photo"}</strong><small>{file.name}</small></span></label>)}</div>}
           {(form.gallery || []).length > 0 && <div className="existing-gallery"><strong>Saved gallery photos</strong><div>{form.gallery.map((url, index) => <span key={url + index}><img src={url} alt={"Saved product photo " + (index + 1)}/><button type="button" onClick={() => setForm((current) => ({ ...current, gallery: current.gallery.filter((_, itemIndex) => itemIndex !== index) }))} aria-label={"Remove saved gallery photo " + (index + 1)}>×</button></span>)}</div></div>}
         </section>

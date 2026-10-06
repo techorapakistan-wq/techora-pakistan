@@ -1,6 +1,10 @@
 export const defaultWebsiteSettings = {
   announcement: "Free shipping on orders over PKR 5,000",
   whatsapp: "923229701332",
+  deliveryFee: 0,
+  paymentPolicy: "full",
+  promotions: [],
+  paymentMethods: [],
   videos: [
     {
       enabled: true,
@@ -31,6 +35,10 @@ export function normalizeWebsiteSettings(value) {
     ...saved,
     announcement: typeof saved.announcement === "string" ? saved.announcement : defaultWebsiteSettings.announcement,
     whatsapp: typeof saved.whatsapp === "string" ? saved.whatsapp : defaultWebsiteSettings.whatsapp,
+    deliveryFee: Number.isFinite(Number(saved.deliveryFee)) ? Math.max(0, Number(saved.deliveryFee)) : defaultWebsiteSettings.deliveryFee,
+    paymentPolicy: ["full", "products", "delivery"].includes(saved.paymentPolicy) ? saved.paymentPolicy : defaultWebsiteSettings.paymentPolicy,
+    promotions: Array.isArray(saved.promotions) ? saved.promotions.filter((promo) => promo && typeof promo === "object") : defaultWebsiteSettings.promotions,
+    paymentMethods: Array.isArray(saved.paymentMethods) ? saved.paymentMethods.filter((method) => method && typeof method === "object") : defaultWebsiteSettings.paymentMethods,
     videos: savedVideos.map((video, index) => ({
       ...(defaultWebsiteSettings.videos[index] || {}),
       ...(video && typeof video === "object" ? video : {}),
