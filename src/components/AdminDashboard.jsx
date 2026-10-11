@@ -757,7 +757,7 @@ export default function AdminDashboard({ session, go }) {
     </div>,
     document.body
   )}
-  {tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "appearance" && <WebsiteSettingsAdmin mode="appearance" notice={setMessage}/>}  {tab === "website settings" && <WebsiteSettingsAdmin notice={setMessage}/>}  {tab === "reviews" && (
+  {tab === "payments" && <PaymentSettingsAdmin notice={(notice) => { setMessage(notice); if (notice === "Payment settings saved.") load(); }}/>}  {tab === "appearance" && <WebsiteSettingsAdmin mode="appearance" notice={setMessage} products={data.products}/>}  {tab === "website settings" && <WebsiteSettingsAdmin notice={setMessage}/>}  {tab === "reviews" && (
     <div className="admin-reviews-section">
       <div className="admin-section-toolbar">
         <div>

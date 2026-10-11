@@ -13,6 +13,7 @@ export const defaultWebsiteSettings = {
   promotions: [],
   paymentMethods: [],
   paymentVisibility: { easypaisa: true, sadapay: true, bank_transfer: true },
+  explorePicks: {},
   heroImages: defaultHeroImages.map((url) => ({ url, storagePath: "" })),
   videos: [
     {
@@ -21,6 +22,8 @@ export const defaultWebsiteSettings = {
       description: "A closer look at the sound and design behind everyday listening.",
       url: "https://videos.pexels.com/video-files/8005699/8005699-uhd_2160_3840_25fps.mp4",
       poster: "https://images.pexels.com/videos/8005699/pexels-photo-8005699.jpeg?auto=compress&cs=tinysrgb&w=1000",
+      sourceType: "video",
+      aspectRatio: "wide",
       sourceLabel: "Pexels",
       sourceUrl: "https://www.pexels.com/video/headphones-with-a-stand-8005699/",
     },
@@ -30,6 +33,8 @@ export const defaultWebsiteSettings = {
       description: "Modern wearables designed to keep up with your day.",
       url: "https://videos.pexels.com/video-files/36124120/15319560_1080_1920_30fps.mp4",
       poster: "https://images.pexels.com/videos/36124120/pexels-photo-36124120.jpeg?auto=compress&cs=tinysrgb&w=1000",
+      sourceType: "video",
+      aspectRatio: "reel",
       sourceLabel: "Pexels",
       sourceUrl: "https://www.pexels.com/video/modern-smartwatch-on-wrist-for-fitness-tracking-36124120/",
     },
@@ -53,6 +58,9 @@ export function normalizeWebsiteSettings(value) {
       ...defaultWebsiteSettings.paymentVisibility,
       ...(saved.paymentVisibility && typeof saved.paymentVisibility === "object" ? saved.paymentVisibility : {}),
     },
+    explorePicks: saved.explorePicks && typeof saved.explorePicks === "object" && !Array.isArray(saved.explorePicks)
+      ? Object.fromEntries(Object.entries(saved.explorePicks).filter(([, productId]) => typeof productId === "string" || typeof productId === "number").map(([category, productId]) => [category, String(productId)]))
+      : {},
     heroImages: Array.from({ length: defaultHeroImages.length }, (_, index) => {
       const image = savedHeroImages[index];
       if (image && typeof image === "object") return { url: typeof image.url === "string" ? image.url : "", storagePath: typeof image.storagePath === "string" ? image.storagePath : "" };
@@ -62,6 +70,8 @@ export function normalizeWebsiteSettings(value) {
     videos: savedVideos.map((video, index) => ({
       ...(defaultWebsiteSettings.videos[index] || {}),
       ...(video && typeof video === "object" ? video : {}),
+      sourceType: video?.sourceType === "iframe" ? "iframe" : "video",
+      aspectRatio: video?.aspectRatio === "reel" ? "reel" : "wide",
     })),
   };
 }

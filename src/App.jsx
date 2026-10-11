@@ -99,7 +99,7 @@ export default function App() {
     setMeta("name", "twitter:description", pageDescription);
     setMeta("name", "twitter:image", pageImage);
   }, [path, selected?.id, selected?.name, selected?.description, selected?.category, selected?.image]);
-  const filtered = useMemo(() => products.filter(product => filter === "All" || product.category === filter).sort((a,b) => sort === "Price: low to high" ? a.price-b.price : sort === "Price: high to low" ? b.price-a.price : a.id-b.id), [filter, sort]);
+  const filtered = useMemo(() => products.filter(product => filter === "All" || String(product.category || "").trim().toLocaleLowerCase() === String(filter).trim().toLocaleLowerCase()).sort((a,b) => sort === "Price: low to high" ? a.price-b.price : sort === "Price: high to low" ? b.price-a.price : 0), [products, filter, sort]);
   const isAdminRoute = path === "/admin" || path === "/admin-login";
   if (isAdminRoute) return session ? <AdminDashboard session={session} go={go}/> : <AuthScreen go={go} mode="admin"/>;
   const nav = [["Home", "/"], ["Shop", "/shop"], ["Categories", "/shop"], ["New arrivals", "/shop"], ["Best sellers", "/shop"]];
@@ -108,7 +108,7 @@ export default function App() {
     <header className="nav-wrap"><button className="mobile-menu-button mobile-only" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Icon name="menu"/></button><button className="mobile-account-button mobile-only" onClick={() => go("/account")} aria-label="Open account"><Icon name="user"/></button><button className="wordmark" onClick={() => go("/")} aria-label="Techora home"><img src={techoraLogo} alt="Techora Gadgets"/></button><nav className="desktop-nav">{nav.map(([label,url]) => <button key={label} onClick={() => go(url)} className={path === url || (url === "/shop" && path.startsWith("/product/")) ? "nav-active" : ""}>{label}</button>)}</nav><div className="nav-tools"><button className="icon-button desktop-search" onClick={() => { setSearchQuery(""); setSearchOpen(true); }} aria-label="Search products" title="Search products"><Icon name="search"/></button><button className="icon-button mobile-only mobile-search" onClick={() => { setSearchQuery(""); setSearchOpen(true); }} aria-label="Search products" title="Search products"><Icon name="search"/></button><button className="icon-button desktop-nav-action" onClick={() => go("/account")} title="Account" aria-label="Open account"><Icon name="user"/></button><button className="icon-button desktop-nav-action" onClick={() => go("/orders")} title="My orders" aria-label="My orders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></button><button className="icon-button" onClick={() => go("/wishlist")} aria-label="Wishlist"><Icon name="heart"/><b>{wishlist.length}</b></button><button ref={cartRef} className="icon-button" onClick={() => go("/cart")} aria-label="Shopping bag"><Icon name="bag"/><b>{cart.length}</b></button></div></header>
     <AnimatePresence>{searchOpen && <motion.div className="store-search-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => setSearchOpen(false)}><motion.section className="store-search-panel" role="dialog" aria-modal="true" aria-label="Search Techora products" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} onMouseDown={(event) => event.stopPropagation()}><div className="store-search-heading"><div><p className="eyebrow">FIND YOUR NEXT UPGRADE</p><h2>Search products</h2></div><button type="button" className="icon-button" onClick={() => setSearchOpen(false)} aria-label="Close search"><Icon name="close"/></button></div><form className="store-search-form" onSubmit={submitSearch}><Icon name="search"/><input autoFocus type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Try earbuds, watch, charger…" aria-label="Search product name, category, or description"/><button type="submit" disabled={!searchQuery.trim() || !searchResults.length}>Search</button></form><div className="store-search-results">{!searchQuery.trim() && <p className="store-search-caption">Popular products</p>}{searchResults.length ? searchResults.map((product) => <button type="button" key={product.id} onClick={() => openProduct(product)}><img src={product.image} alt=""/><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{money(product.price)}</b></button>) : <p className="store-search-empty">No products match “{searchQuery}”. Try another name or category.</p>}</div></motion.section></motion.div>}</AnimatePresence>
     <AnimatePresence>{menuOpen && <motion.div className="mobile-menu" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:.2}} onClick={() => setMenuOpen(false)}><motion.aside className="mobile-menu-panel" initial={{x:"-100%"}} animate={{x:0}} exit={{x:"-100%"}} transition={{type:"spring",damping:28,stiffness:260}} onClick={(event) => event.stopPropagation()} aria-label="Mobile navigation"><div className="mobile-menu-header"><button className="mobile-menu-brand" onClick={() => go("/")} aria-label="Techora home"><img src={techoraLogo} alt="Techora Pakistan"/><span><strong>TECHORA</strong><small>SMART CHOICES · BETTER TECH</small></span></button><button className="icon-button menu-close" onClick={() => setMenuOpen(false)} aria-label="Close menu"><Icon name="close"/></button></div><nav className="mobile-menu-links">{nav.map(([label,url],index) => <motion.button key={label} initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.08+index*.045}} onClick={() => go(url)}><span>0{index+1}</span>{label}<Icon name="arrow"/></motion.button>)}<motion.button initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.31}} onClick={() => go("/orders")}><span>06</span>My orders<Icon name="arrow"/></motion.button><motion.button initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.36}} onClick={() => go("/account")}><span>07</span>{session ? "My account" : "Sign in"}<Icon name="arrow"/></motion.button></nav><div className="mobile-menu-products"><div className="mobile-menu-section-title"><span>Featured now</span><button onClick={() => go("/shop")}>View all</button></div><div className="mobile-menu-product-grid">{products.slice(0,3).map((product,index) => <motion.button className="mobile-menu-product" key={product.id} initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.2+index*.06}} onClick={() => openProduct(product)}><img src={product.image} alt=""/><span><strong>{product.name}</strong><small>{money(product.price)}</small></span></motion.button>)}</div></div><div className="mobile-menu-footer"><img src={techoraLogo} alt=""/><span><small>CURATED WITH CARE</small><strong>BY TECHORA PAKISTAN</strong></span></div></motion.aside></motion.div>}</AnimatePresence>
-    {path === "/" && <Home go={go} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session} websiteSettings={websiteSettings}/>} {path === "/shop" && <Shop products={filtered} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session} websiteSettings={websiteSettings} onRatingUpdate={updateProductRating}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} websiteSettings={websiteSettings} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/account" && (session ? <CustomerAccount session={session} go={go}/> : <AuthScreen go={go} mode="customer" redirectTo="/account"/>)} {path === "/order-success" && <OrderSuccess session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
+    {path === "/" && <Home go={go} setFilter={setFilter} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session} websiteSettings={websiteSettings}/>} {path === "/shop" && <Shop products={filtered} allProducts={products} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session} websiteSettings={websiteSettings} onRatingUpdate={updateProductRating}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} websiteSettings={websiteSettings} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/account" && (session ? <CustomerAccount session={session} go={go}/> : <AuthScreen go={go} mode="customer" redirectTo="/account"/>)} {path === "/order-success" && <OrderSuccess session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
     <Footer go={go} websiteSettings={websiteSettings}/><a className="floating-whatsapp" href={`https://wa.me/${whatsappDigits(websiteSettings.whatsapp)}?text=Hi%20Techora%2C%20I%20need%20help%20with%20a%20product.`} target="_blank" rel="noreferrer" aria-label="Chat with Techora on WhatsApp"><Icon name="whatsapp"/></a>
     <AnimatePresence>{flying && <motion.img className="fly-to-cart" src={flying.product.image} alt="" initial={{opacity:1,scale:1,x:0,y:0}} animate={{opacity:.15,scale:.2,x:flying.dx,y:flying.dy}} transition={{duration:.55}} style={{left:flying.x,top:flying.y}} onAnimationComplete={() => setFlying(null)}/>}</AnimatePresence><AnimatePresence>{toast && <motion.div className="toast" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:10}}>{toast}</motion.div>}</AnimatePresence>
   </div>;
@@ -133,8 +133,20 @@ function CustomerAccount({ session, go }) {
     {status && <p className="form-status" role="status">{status}</p>}
   </main>;
 }
-function Home({go,openProduct,products,add,wish,toggleWish,session,websiteSettings}) {
-  const categories=products.map(product => [product.category, product.name, product.image]);
+function Home({go,setFilter,openProduct,products,add,wish,toggleWish,session,websiteSettings}) {
+  const categoryGroups = new Map();
+  products.forEach((product) => {
+    const category = String(product.category || "").trim();
+    if (!category) return;
+    const key = category.toLocaleLowerCase();
+    if (!categoryGroups.has(key)) categoryGroups.set(key, { category, products: [] });
+    categoryGroups.get(key).products.push(product);
+  });
+  const explorePicks = websiteSettings.explorePicks || {};
+  const categories = [...categoryGroups.entries()].map(([key, group]) => {
+    const featured = group.products.find((product) => String(product.id) === String(explorePicks[key])) || group.products[0];
+    return { key, category: group.category, featured };
+  });
   const best=products.slice(0,4), fresh=products.length > 4 ? products.slice(4,8) : products.slice().reverse();
   return <main><HeroCarousel go={go} products={products} openProduct={openProduct} heroImages={websiteSettings.heroImages}/>
     <section className="home-trustbar" aria-label="Why shop with Techora">{[["⚡","Fast dispatch","Across Pakistan"],["✓","Quality checked","Before it ships"],["🔒","Secure payment","Multiple options"],["◌","WhatsApp support","Here to help"]].map(([icon,title,copy])=><div key={title}><b>{icon}</b><span><strong>{title}</strong><small>{copy}</small></span></div>)}</section>
@@ -162,7 +174,7 @@ function Home({go,openProduct,products,add,wish,toggleWish,session,websiteSettin
         </div>
       </div>
     </section>
-    <section className="section premium-categories"><div className="shop-heading"><div><p className="eyebrow">SHOP BY CATEGORY</p><h2>Find your next <em>upgrade.</em></h2></div><button className="text-link" onClick={()=>go("/shop")}>See all products <Icon name="arrow"/></button></div><div className="premium-category-grid">{categories.map(([name,copy,image])=><button key={name} onClick={()=>go("/shop")}><img src={image} alt=""/><span/><div><p>{copy}</p><h3>{name}</h3><em>Explore <Icon name="arrow"/></em></div></button>)}</div></section>
+    <section className="section premium-categories"><div className="shop-heading"><div><p className="eyebrow">SHOP BY CATEGORY</p><h2>Find your next <em>upgrade.</em></h2></div><button className="text-link" onClick={()=>{setFilter("All");go("/shop")}}>See all products <Icon name="arrow"/></button></div><div className="premium-category-grid">{categories.map(({key,category,featured})=><button key={key} onClick={()=>{setFilter(category);go("/shop")}}><img src={featured.image || featured.image_url || ""} alt=""/><span/><div><p>{featured.name}</p><h3>{category}</h3><em>Explore <Icon name="arrow"/></em></div></button>)}</div></section>
     <ProductShelf eyebrow="BEST SELLERS" title={<>The Techora <em>favourites.</em></>} products={best} go={go} openProduct={openProduct} add={add} wish={wish} toggleWish={toggleWish}/>
     <section className="deal-banner"><div><p className="eyebrow">LIMITED-TIME SAVINGS</p><h2>Today&apos;s <em>Tech Deals.</em></h2><p>Premium upgrades with prices worth acting on. New offers arrive regularly.</p><button className="button button-ink" onClick={()=>go("/shop")}>Shop special offers <Icon name="arrow"/></button></div><div className="deal-stat"><strong>UP TO<br/><em>20%</em></strong><span>OFF SELECTED TECH</span></div></section>
     <ProductShelf eyebrow="NEW ARRIVALS" title={<>Fresh tech, <em>just in.</em></>} products={fresh} go={go} openProduct={openProduct} add={add} wish={wish} toggleWish={toggleWish}/>
@@ -210,22 +222,66 @@ function VideoShowcase({ videos = [] }) {
   if (!clips.length) return null;
   return <section className="section video-showcase" aria-label="Techora product videos">
     <div className="shop-heading"><div><p className="eyebrow">TECHORA IN MOTION</p><h2>See the details <em>for yourself.</em></h2></div><p>Product moments, before they reach your door.</p></div>
-    <div className="video-showcase-grid">{clips.map((video, index) => {
-      const isVideoFile = /\.(mp4|webm|ogg|mov)(?:$|\?)/i.test(video.url);
-      const youtubeId = video.url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i)?.[1];
-      const vimeoId = video.url.match(/vimeo\.com\/(?:video\/)?(\d+)/i)?.[1];
-      const embedUrl = youtubeId ? `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0` : vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : null;
-      return <article className="video-showcase-card" key={`${video.url}-${index}`}>
-        <div className="video-showcase-frame">{isVideoFile || !embedUrl
-          ? <video controls playsInline preload="none" poster={video.poster || undefined} aria-label={video.title || `Techora video ${index + 1}`}><source src={video.url}/></video>
-          : <iframe src={embedUrl} title={video.title || `Techora video ${index + 1}`} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>}</div>
-        <div className="video-showcase-copy"><span>0{index + 1} / PRODUCT FILM</span><h3>{video.title || "Featured product"}</h3><p>{video.description}</p>{video.sourceUrl && <a href={video.sourceUrl} target="_blank" rel="noreferrer">Video credit: {video.sourceLabel || "Source"} ↗</a>}</div>
-      </article>;
-    })}</div>
+    <div className="video-showcase-grid">{clips.map((video, index) => <VideoShowcaseCard key={`${video.url}-${index}`} video={video} index={index}/>)}</div>
   </section>;
 }
-function ProductShelf({eyebrow,title,products,go,openProduct,add,wish,toggleWish}) { return <section className="section home-products"><div className="shop-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="text-link" onClick={() => go("/shop")}>View all <Icon name="arrow"/></button></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section> }function Shop({products,filter,setFilter,sort,setSort,openProduct,add,wish,toggleWish}) {
-  const cats=["All",...new Set(products.map(p=>p.category).filter(Boolean))];
+function VideoShowcaseCard({ video, index }) {
+  const frameRef = useRef(null);
+  const [inView, setInView] = useState(false);
+  const [mediaReady, setMediaReady] = useState(false);
+  const youtubeId = video.url.match(/(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/i)?.[1];
+  const vimeoId = video.url.match(/vimeo\.com\/(?:video\/)?(\d+)/i)?.[1];
+  const isVideoFile = /\.(mp4|webm|ogg|mov)(?:$|[?#])/i.test(video.url);
+  const useIframe = video.sourceType === "iframe" || Boolean(youtubeId || vimeoId) || (!isVideoFile && video.sourceType !== "video");
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return undefined;
+    if (typeof IntersectionObserver === "undefined") { setInView(true); return undefined; }
+    const observer = new IntersectionObserver(([entry]) => {
+      const visible = entry.isIntersecting && entry.intersectionRatio >= 0.5;
+      setInView(visible);
+      if (!visible) setMediaReady(false);
+    }, { threshold: [0, 0.5, 0.75], rootMargin: "0px 0px -8% 0px" });
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!inView) frameRef.current?.querySelector("video")?.pause();
+  }, [inView]);
+
+  let embedUrl = "";
+  if (youtubeId) embedUrl = `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0`;
+  else if (vimeoId) embedUrl = `https://player.vimeo.com/video/${vimeoId}`;
+  else if (useIframe) embedUrl = video.url;
+  if (embedUrl) {
+    try {
+      const parsed = new URL(embedUrl, window.location.href);
+      parsed.searchParams.set("autoplay", inView ? "1" : "0");
+      parsed.searchParams.set("mute", "1");
+      parsed.searchParams.set("playsinline", "1");
+      embedUrl = parsed.href;
+    } catch { /* Keep the supplied iframe URL if it cannot be parsed. */ }
+  }
+
+  return <article className="video-showcase-card">
+    <div ref={frameRef} className={`video-showcase-frame${video.aspectRatio === "reel" ? " is-reel" : ""}`}>
+      {useIframe
+        ? <iframe src={inView ? embedUrl : "about:blank"} title={video.title || `Techora video ${index + 1}`} loading="lazy" onLoad={() => { if (inView) setMediaReady(true); }} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen/>
+        : <video controls playsInline preload="metadata" poster={video.poster || undefined} autoPlay={inView} muted aria-label={video.title || `Techora video ${index + 1}`} onPlaying={() => setMediaReady(true)}><source src={video.url}/></video>}
+      {(!mediaReady || !inView) && <div className={`video-showcase-poster${video.poster ? " has-image" : ""}`} aria-hidden="true">{video.poster && <img src={video.poster} alt=""/>}<span>{video.title || "Techora video preview"}</span></div>}
+    </div>
+    <div className="video-showcase-copy"><span>0{index + 1} / PRODUCT FILM</span><h3>{video.title || "Featured product"}</h3><p>{video.description}</p>{video.sourceUrl && <a href={video.sourceUrl} target="_blank" rel="noreferrer">Video credit: {video.sourceLabel || "Source"} ↗</a>}</div>
+  </article>;
+}
+function ProductShelf({eyebrow,title,products,go,openProduct,add,wish,toggleWish}) { return <section className="section home-products"><div className="shop-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="text-link" onClick={() => go("/shop")}>View all <Icon name="arrow"/></button></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section> }function Shop({products,allProducts,filter,setFilter,sort,setSort,openProduct,add,wish,toggleWish}) {
+  const uniqueCategories = new Map();
+  allProducts.forEach((product) => {
+    const category = String(product.category || "").trim();
+    if (category && !uniqueCategories.has(category.toLocaleLowerCase())) uniqueCategories.set(category.toLocaleLowerCase(), category);
+  });
+  const cats=["All",...uniqueCategories.values()];
   return <main className="page-shell"><div className="breadcrumb">Home <span>/</span> Shop</div><div className="page-heading"><div><p className="eyebrow">SHOP TECHORA</p><h1>The complete <em>edit.</em></h1></div><p>Devices and accessories selected for everyday life.</p></div><div className="shop-layout"><aside className="shop-sidebar"><div className="filter-title"><Icon name="sliders"/> Filters</div><p className="filter-label">Category</p>{cats.map(cat=><button className={filter===cat?"active":""} onClick={()=>setFilter(cat)} key={cat}>{cat}</button>)}</aside><section className="shop-results"><div className="results-top"><span>{products.length} products</span><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option>Featured</option><option>Price: low to high</option><option>Price: high to low</option></select></label></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section></div></main>;
 }function ProductCard({product,index,openProduct,add,wished,toggleWish}) {
   const discount=Number(product.discount||0); const isSoldOut=Number(product.stock)<=0; const badge=discount>0?`${discount}% OFF`:index<2?"BEST SELLER":"NEW";
