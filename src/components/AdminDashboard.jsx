@@ -131,6 +131,8 @@ export default function AdminDashboard({ session, go }) {
             email: r.email || "",
             rating: Number(r.rating) || 5,
             message: r.message || "",
+            photo_url: r.photo_url || "",
+            photo_path: r.photo_path || "",
             is_visible: r.is_visible !== false,
             created_at: r.created_at || new Date().toISOString(),
           });
@@ -152,6 +154,8 @@ export default function AdminDashboard({ session, go }) {
                 email: r.email || "",
                 rating: Number(r.rating) || 5,
                 message: r.message || "",
+                photo_url: r.photo_url || "",
+                photo_path: r.photo_path || "",
                 is_visible: true,
                 created_at: r.created_at || new Date().toISOString(),
               });
@@ -173,6 +177,8 @@ export default function AdminDashboard({ session, go }) {
                   email: r.email || "",
                   rating: Number(r.rating) || 5,
                   message: r.product_name ? `[${r.product_name}] ${r.message}` : r.message || "",
+                  photo_url: r.photo_url || "",
+                  photo_path: r.photo_path || "",
                   is_visible: true,
                   created_at: r.created_at || new Date().toISOString(),
                 });
@@ -436,6 +442,7 @@ export default function AdminDashboard({ session, go }) {
   };
   const deleteReview = async (id) => {
     if (!window.confirm("Permanently delete this customer review?")) return;
+    const reviewPhotoPath = data.reviews.find((review) => String(review.id) === String(id))?.photo_path;
     setMessage("Deleting review...");
 
     // 1. Blacklist in localStorage so it NEVER reappears
@@ -479,7 +486,10 @@ export default function AdminDashboard({ session, go }) {
           console.warn("Supabase review delete:", error);
           setMessage("Review removed locally. Note: Supabase RLS delete policy may need update in SQL Editor.");
         } else {
-          setMessage("✓ Review permanently removed.");
+          if (reviewPhotoPath) {
+            const { error: photoError } = await supabase.storage.from("review-photos").remove([reviewPhotoPath]);
+            setMessage(photoError ? `Review removed. Photo cleanup needs attention: ${photoError.message}` : "✓ Review and photo permanently removed.");
+          } else setMessage("✓ Review permanently removed.");
         }
       } catch (err) {
         setMessage("✓ Review permanently removed.");
@@ -819,6 +829,7 @@ export default function AdminDashboard({ session, go }) {
                 )}
 
                 <div className="admin-review-content">
+                  {review.photo_url && <img className="admin-review-photo" src={review.photo_url} alt="Photo attached to customer review" loading="lazy"/>}
                   <p>"{cleanMessage}"</p>
                 </div>
 

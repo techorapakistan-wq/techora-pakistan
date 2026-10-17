@@ -170,12 +170,16 @@ create table if not exists public.reviews (
   customer_name text,
   rating integer not null default 5 check (rating between 1 and 5),
   message text not null,
+  photo_url text,
+  photo_path text,
   is_visible boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 -- Migration helpers if table already exists
 alter table public.reviews add column if not exists customer_name text;
+alter table public.reviews add column if not exists photo_url text;
+alter table public.reviews add column if not exists photo_path text;
 alter table public.reviews alter column user_id drop not null;
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$
@@ -248,10 +252,19 @@ insert into storage.buckets (id, name, public) values ('payment-proofs', 'paymen
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('store-media', 'store-media', true, 104857600, array['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/ogg','video/quicktime'])
 on conflict (id) do update set public=true, file_size_limit=104857600, allowed_mime_types=excluded.allowed_mime_types;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('review-photos', 'review-photos', true, 5242880, array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update set public=true, file_size_limit=5242880, allowed_mime_types=excluded.allowed_mime_types;
 drop policy if exists "store media public read" on storage.objects;
 create policy "store media public read" on storage.objects for select to anon, authenticated using (bucket_id='store-media');
 drop policy if exists "store media admin manage" on storage.objects;
 create policy "store media admin manage" on storage.objects for all to authenticated using (bucket_id='store-media' and public.is_admin()) with check (bucket_id='store-media' and public.is_admin());
+drop policy if exists "product review photos public insert" on storage.objects;
+create policy "product review photos public insert" on storage.objects for insert to anon, authenticated
+  with check (bucket_id='review-photos' and (storage.foldername(name))[1]='product-reviews' and storage.extension(name) in ('jpg','jpeg','png','webp'));
+drop policy if exists "product review photos admin delete" on storage.objects;
+create policy "product review photos admin delete" on storage.objects for delete to authenticated
+  using (bucket_id='review-photos' and public.is_admin());
 drop policy if exists "order owners upload payment proof files" on storage.objects;
 create policy "order owners upload payment proof files" on storage.objects for insert to authenticated with check (bucket_id='payment-proofs' and (storage.foldername(name))[1]=auth.uid()::text and exists(select 1 from public.orders o where o.id=((storage.foldername(name))[2])::uuid and o.user_id=auth.uid()));
 drop policy if exists "order owners and admins view payment proof files" on storage.objects;

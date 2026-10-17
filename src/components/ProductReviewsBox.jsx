@@ -31,8 +31,17 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
   const [hoverRating, setHoverRating] = useState(0);
   const [name, setName] = useState(session?.user?.user_metadata?.full_name || "");
   const [comment, setComment] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!photoFile) { setPhotoPreview(""); return undefined; }
+    const preview = URL.createObjectURL(photoFile);
+    setPhotoPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [photoFile]);
 
   const loadReviews = async () => {
     if (!product?.id) return;
@@ -63,6 +72,8 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
               name: r.customer_name || "Customer",
               rating: Number(r.rating) || 5,
               message: r.message.replace(/^\[.*?\]\s*/, ""),
+              photo_url: r.photo_url || "",
+              photo_path: r.photo_path || "",
               created_at: r.created_at,
             }));
           const existingIds = new Set(local.map((l) => l.id));
@@ -102,6 +113,38 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
     setSubmitting(true);
     setStatus("");
 
+    let reviewPhoto = { url: "", path: "" };
+    if (photoFile) {
+      if (!supabase || !isSupabaseConfigured) {
+        setSubmitting(false);
+        setStatus("Photo upload is unavailable right now. Please try again later or submit without a photo.");
+        return;
+      }
+      const extension = photoFile.name.split(".").pop()?.toLowerCase();
+      const mimeType = photoFile.type || ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" })[extension] || "";
+      const safeExtension = extension || ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" })[mimeType];
+      if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType) || photoFile.size > 5 * 1024 * 1024) {
+        setSubmitting(false);
+        setStatus("Choose a JPG, PNG, or WebP photo up to 5 MB.");
+        return;
+      }
+      const token = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const path = `product-reviews/${product.id}/${token}.${safeExtension}`;
+      try {
+        const { error: uploadError } = await supabase.storage.from("review-photos").upload(path, photoFile, {
+          upsert: false,
+          contentType: mimeType,
+          cacheControl: "3600",
+        });
+        if (uploadError) throw uploadError;
+      } catch (uploadError) {
+        setSubmitting(false);
+        setStatus(uploadError.message || "Photo upload failed. Please try again.");
+        return;
+      }
+      reviewPhoto = { path, url: supabase.storage.from("review-photos").getPublicUrl(path).data.publicUrl };
+    }
+
     const newRev = {
       id: "prev-" + Date.now() + "-" + Math.random().toString(36).substr(2, 6),
       product_id: product.id,
@@ -110,6 +153,8 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
       customer_name: name.trim(),
       rating: Number(rating),
       message: comment.trim(),
+      photo_url: reviewPhoto.url,
+      photo_path: reviewPhoto.path,
       created_at: new Date().toISOString(),
     };
 
@@ -132,6 +177,8 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
         customer_name: name.trim(),
         rating: Number(rating),
         message: `[${product.name}] ${comment.trim()}`,
+        photo_url: reviewPhoto.url,
+        photo_path: reviewPhoto.path,
         created_at: newRev.created_at,
       });
       localStorage.setItem("techora_customer_reviews", JSON.stringify(listGlobal));
@@ -151,11 +198,22 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
           message: `[${product.name}] ${comment.trim()}`,
           is_visible: true,
         };
+        if (reviewPhoto.url) {
+          payload.photo_url = reviewPhoto.url;
+          payload.photo_path = reviewPhoto.path;
+        }
         if (session?.user?.id) payload.user_id = session.user.id;
         const { data: dbItem, error: dbErr } = await supabase.from("reviews").insert(payload).select().single();
         if (!dbErr && dbItem?.id) {
-          // If Supabase created a UUID, update local reference
+          const localReviewId = newRev.id;
           newRev.id = dbItem.id;
+          const syncedReviews = updated.map((review) => review.id === localReviewId ? { ...review, id: dbItem.id } : review);
+          setReviews(syncedReviews);
+          try { localStorage.setItem(`techora_product_reviews_${product.id}`, JSON.stringify(syncedReviews)); } catch (err) {}
+          try {
+            const globalReviews = JSON.parse(localStorage.getItem("techora_customer_reviews") || "[]");
+            localStorage.setItem("techora_customer_reviews", JSON.stringify(globalReviews.map((review) => review.id === localReviewId ? { ...review, id: dbItem.id } : review)));
+          } catch (err) {}
         }
       } catch (dbErr) {
         console.warn("Supabase review insert note:", dbErr);
@@ -165,6 +223,7 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
     setSubmitting(false);
     setStatus("✓ Thank you! Your review has been published.");
     setComment("");
+    setPhotoFile(null);
     setRating(5);
     setFormOpen(false);
   };
@@ -241,6 +300,29 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
             />
           </label>
 
+          <div className="review-photo-field">
+            <label className="review-photo-picker">
+              <span>Product photo <small>(optional)</small></span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => {
+                const file = event.target.files?.[0] || null;
+                const extension = file?.name.split(".").pop()?.toLowerCase();
+                const mimeType = file?.type || ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" })[extension] || "";
+                if (file && file.size > 5 * 1024 * 1024) {
+                  setPhotoFile(null);
+                  setStatus("Choose a photo up to 5 MB.");
+                } else if (file && !["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+                  setPhotoFile(null);
+                  setStatus("Choose a JPG, PNG, or WebP photo.");
+                } else {
+                  setPhotoFile(file);
+                  setStatus("");
+                }
+                event.target.value = "";
+              }}/>
+            </label>
+            {photoPreview && <div className="review-photo-preview"><img src={photoPreview} alt="Selected review photo preview"/><button type="button" onClick={() => setPhotoFile(null)}>Remove photo</button></div>}
+          </div>
+
           <div className="review-form-actions">
             <button type="submit" className="button button-ink" disabled={submitting}>
               {submitting ? "Submitting..." : "Submit Review ✓"}
@@ -266,6 +348,7 @@ export default function ProductReviewsBox({ product, session, onRatingUpdate }) 
                   {"★".repeat(r.rating || 5)}{"☆".repeat(5 - (r.rating || 5))}
                 </span>
               </div>
+              {r.photo_url && <img className="single-review-photo" src={r.photo_url} alt="Photo shared with this product review" loading="lazy"/>}
               <p className="single-review-comment">"{r.message}"</p>
               <div className="single-review-foot">
                 <strong>{r.name}</strong>

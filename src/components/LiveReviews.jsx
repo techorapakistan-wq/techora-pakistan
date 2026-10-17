@@ -61,6 +61,7 @@ export default function LiveReviews({ session, go, embedded = false }) {
               name: r.customer_name || "Techora Customer",
               rating: Number(r.rating) || 5,
               message: r.message,
+              photo_url: r.photo_url || "",
               created_at: r.created_at,
             }));
         }
@@ -283,6 +284,7 @@ export default function LiveReviews({ session, go, embedded = false }) {
                   {"☆".repeat(Math.max(0, 5 - rev.rating))}
                 </div>
               </div>
+              {rev.photo_url && <img className="review-card-photo" src={rev.photo_url} alt="Photo attached to customer review" loading="lazy"/>}
               <p className="review-comment-text">"{rev.message}"</p>
               <footer>
                 <strong>{rev.name}</strong>
