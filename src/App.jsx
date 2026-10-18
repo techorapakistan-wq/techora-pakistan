@@ -17,8 +17,24 @@ import ProductMarquee from "./components/ProductMarquee";
 import { defaultWebsiteSettings, normalizeWebsiteSettings, whatsappDigits } from "./data/siteSettings";
 import { fallbackProducts } from "./data/catalog";
 import ProductReviewsBox, { getStoredProductRating } from "./components/ProductReviewsBox";
+import StoreActivityToast from "./components/StoreActivityToast";
 
 const money = (number) => `PKR ${Number(number || 0).toLocaleString()}`;
+function getAnalyticsVisitorId() {
+  try {
+    const storageKey = "techora_analytics_visitor";
+    const savedId = localStorage.getItem(storageKey);
+    if (savedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(savedId)) return savedId;
+    const visitorId = globalThis.crypto?.randomUUID?.() || "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (char) => {
+      const random = Math.random() * 16 | 0;
+      return (char === "x" ? random : (random & 3 | 8)).toString(16);
+    });
+    localStorage.setItem(storageKey, visitorId);
+    return visitorId;
+  } catch (error) {
+    return null;
+  }
+}
 const originalPrice = (product) => { const discount = Number(product.discount || 0); return discount > 0 ? Math.round(Number(product.price) / (1 - discount / 100)) : Number(product.price); };
 const setMeta = (attribute, key, value) => {
   let element = document.head.querySelector('meta[' + attribute + '="' + key + '"]');
@@ -34,9 +50,21 @@ function Icon({ name }) {
 export default function App() {
   const [session, setSession] = useState(null);
   const [products, setProducts] = useState(fallbackProducts);
+  const [productSocialProof, setProductSocialProof] = useState([]);
   const [websiteSettings, setWebsiteSettings] = useState(defaultWebsiteSettings);
   useEffect(() => { if (!supabase) return; supabase.auth.getSession().then(({ data }) => setSession(data.session)); const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession)); return () => listener.subscription.unsubscribe(); }, []);
   useEffect(() => { if (!supabase) return; const loadProducts = () => supabase.from("products").select("*").eq("is_active", true).order("created_at", { ascending: false }).then(({ data }) => { if (data?.length) { const dbProducts = data.map(item => ({ ...item, image: item.image_url, gallery: Array.isArray(item.gallery) ? item.gallery : [], colors: Array.isArray(item.colors) ? item.colors : [], price: Number(item.price) * (1 - Number(item.discount || 0) / 100) })); const existingIds = new Set(dbProducts.map(p => p.id)); const extraFallback = fallbackProducts.filter(p => !existingIds.has(p.id)); setProducts([...dbProducts, ...extraFallback]); } }); loadProducts(); const timer = window.setInterval(loadProducts, 15000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => {
+    if (!supabase) return undefined;
+    let active = true;
+    const loadSocialProof = async () => {
+      const { data, error } = await supabase.from("product_social_proof").select("product_id,product_name,unique_visitors_30d,units_sold_30d");
+      if (active && !error && data) setProductSocialProof(data);
+    };
+    loadSocialProof();
+    const timer = window.setInterval(loadSocialProof, 60000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
   useEffect(() => {
     if (!supabase) return undefined;
     let active = true;
@@ -58,6 +86,7 @@ export default function App() {
   const [filter, setFilter] = useState("All");
   const [sort, setSort] = useState("Featured");
   const cartRef = useRef(null);
+  const lastTrackedPage = useRef("");
   const [flying, setFlying] = useState(null);
   useEffect(() => { const onPop = () => setPath(window.location.pathname); addEventListener("popstate", onPop); return () => removeEventListener("popstate", onPop); }, []);
   useEffect(() => { document.body.style.overflow = menuOpen || searchOpen ? "hidden" : ""; const onKey = (event) => { if (event.key === "Escape") { setMenuOpen(false); setSearchOpen(false); } }; addEventListener("keydown", onKey); return () => { document.body.style.overflow = ""; removeEventListener("keydown", onKey); }; }, [menuOpen, searchOpen]);
@@ -79,6 +108,31 @@ export default function App() {
     if (searchResults[0]) openProduct(searchResults[0]);
   };
   const selected = products.find(product => `/product/${product.id}` === path) || fallbackProducts.find(product => `/product/${product.id}` === path);
+  const selectedSocialProof = productSocialProof.find((item) => String(item.product_id) === String(selected?.id));
+  useEffect(() => {
+    if (!supabase) return;
+    const isTrackablePage = ["/", "/shop", "/reviews", "/story"].includes(path) || Boolean(selected);
+    if (!isTrackablePage) return;
+    const eventKey = selected ? `product:${selected.id}` : `page:${path}`;
+    if (lastTrackedPage.current === eventKey) return;
+    lastTrackedPage.current = eventKey;
+    const visitorId = getAnalyticsVisitorId();
+    if (!visitorId) return;
+    const event = selected ? {
+      session_id: visitorId,
+      event_type: "product_view",
+      path: `/product/${selected.id}`,
+      product_id: String(selected.id),
+      product_name: String(selected.name || "").slice(0, 200),
+    } : {
+      session_id: visitorId,
+      event_type: "page_view",
+      path,
+    };
+    supabase.from("site_analytics").insert(event).then(({ error }) => {
+      if (error) console.debug("Storefront analytics are unavailable until the analytics table is enabled.");
+    });
+  }, [path, selected?.id, selected?.name]);
   useEffect(() => {
     const pageUrl = new URL(path, window.location.origin);
     const isPrivate = ["/admin", "/admin-login", "/account", "/cart", "/wishlist", "/orders", "/login"].includes(path);
@@ -108,8 +162,8 @@ export default function App() {
     <header className="nav-wrap"><button className="mobile-menu-button mobile-only" onClick={() => setMenuOpen(true)} aria-label="Open menu"><Icon name="menu"/></button><button className="mobile-account-button mobile-only" onClick={() => go("/account")} aria-label="Open account"><Icon name="user"/></button><button className="wordmark" onClick={() => go("/")} aria-label="Techora home"><img src={techoraLogo} alt="Techora Gadgets"/></button><nav className="desktop-nav">{nav.map(([label,url]) => <button key={label} onClick={() => go(url)} className={path === url || (url === "/shop" && path.startsWith("/product/")) ? "nav-active" : ""}>{label}</button>)}</nav><div className="nav-tools"><button className="icon-button desktop-search" onClick={() => { setSearchQuery(""); setSearchOpen(true); }} aria-label="Search products" title="Search products"><Icon name="search"/></button><button className="icon-button mobile-only mobile-search" onClick={() => { setSearchQuery(""); setSearchOpen(true); }} aria-label="Search products" title="Search products"><Icon name="search"/></button><button className="icon-button desktop-nav-action" onClick={() => go("/account")} title="Account" aria-label="Open account"><Icon name="user"/></button><button className="icon-button desktop-nav-action" onClick={() => go("/orders")} title="My orders" aria-label="My orders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></button><button className="icon-button" onClick={() => go("/wishlist")} aria-label="Wishlist"><Icon name="heart"/><b>{wishlist.length}</b></button><button ref={cartRef} className="icon-button" onClick={() => go("/cart")} aria-label="Shopping bag"><Icon name="bag"/><b>{cart.length}</b></button></div></header>
     <AnimatePresence>{searchOpen && <motion.div className="store-search-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={() => setSearchOpen(false)}><motion.section className="store-search-panel" role="dialog" aria-modal="true" aria-label="Search Techora products" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} onMouseDown={(event) => event.stopPropagation()}><div className="store-search-heading"><div><p className="eyebrow">FIND YOUR NEXT UPGRADE</p><h2>Search products</h2></div><button type="button" className="icon-button" onClick={() => setSearchOpen(false)} aria-label="Close search"><Icon name="close"/></button></div><form className="store-search-form" onSubmit={submitSearch}><Icon name="search"/><input autoFocus type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Try earbuds, watch, charger…" aria-label="Search product name, category, or description"/><button type="submit" disabled={!searchQuery.trim() || !searchResults.length}>Search</button></form><div className="store-search-results">{!searchQuery.trim() && <p className="store-search-caption">Popular products</p>}{searchResults.length ? searchResults.map((product) => <button type="button" key={product.id} onClick={() => openProduct(product)}><img src={product.image} alt=""/><span><strong>{product.name}</strong><small>{product.category}</small></span><b>{money(product.price)}</b></button>) : <p className="store-search-empty">No products match “{searchQuery}”. Try another name or category.</p>}</div></motion.section></motion.div>}</AnimatePresence>
     <AnimatePresence>{menuOpen && <motion.div className="mobile-menu" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:.2}} onClick={() => setMenuOpen(false)}><motion.aside className="mobile-menu-panel" initial={{x:"-100%"}} animate={{x:0}} exit={{x:"-100%"}} transition={{type:"spring",damping:28,stiffness:260}} onClick={(event) => event.stopPropagation()} aria-label="Mobile navigation"><div className="mobile-menu-header"><button className="mobile-menu-brand" onClick={() => go("/")} aria-label="Techora home"><img src={techoraLogo} alt="Techora Pakistan"/><span><strong>TECHORA</strong><small>SMART CHOICES · BETTER TECH</small></span></button><button className="icon-button menu-close" onClick={() => setMenuOpen(false)} aria-label="Close menu"><Icon name="close"/></button></div><nav className="mobile-menu-links">{nav.map(([label,url],index) => <motion.button key={label} initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.08+index*.045}} onClick={() => go(url)}><span>0{index+1}</span>{label}<Icon name="arrow"/></motion.button>)}<motion.button initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.31}} onClick={() => go("/orders")}><span>06</span>My orders<Icon name="arrow"/></motion.button><motion.button initial={{opacity:0,x:-14}} animate={{opacity:1,x:0}} transition={{delay:.36}} onClick={() => go("/account")}><span>07</span>{session ? "My account" : "Sign in"}<Icon name="arrow"/></motion.button></nav><div className="mobile-menu-products"><div className="mobile-menu-section-title"><span>Featured now</span><button onClick={() => go("/shop")}>View all</button></div><div className="mobile-menu-product-grid">{products.slice(0,3).map((product,index) => <motion.button className="mobile-menu-product" key={product.id} initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} transition={{delay:.2+index*.06}} onClick={() => openProduct(product)}><img src={product.image} alt=""/><span><strong>{product.name}</strong><small>{money(product.price)}</small></span></motion.button>)}</div></div><div className="mobile-menu-footer"><img src={techoraLogo} alt=""/><span><small>CURATED WITH CARE</small><strong>BY TECHORA PAKISTAN</strong></span></div></motion.aside></motion.div>}</AnimatePresence>
-    {path === "/" && <Home go={go} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session} websiteSettings={websiteSettings}/>} {path === "/shop" && <Shop products={filtered} allProducts={products} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session} websiteSettings={websiteSettings} onRatingUpdate={updateProductRating}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} websiteSettings={websiteSettings} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/account" && (session ? <CustomerAccount session={session} go={go}/> : <AuthScreen go={go} mode="customer" redirectTo="/account"/>)} {path === "/order-success" && <OrderSuccess session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
-    <Footer go={go} websiteSettings={websiteSettings}/><a className="floating-whatsapp" href={`https://wa.me/${whatsappDigits(websiteSettings.whatsapp)}?text=Hi%20Techora%2C%20I%20need%20help%20with%20a%20product.`} target="_blank" rel="noreferrer" aria-label="Chat with Techora on WhatsApp"><Icon name="whatsapp"/></a>
+    {path === "/" && <Home go={go} openProduct={openProduct} products={products} add={add} wish={wishlist} toggleWish={toggleWish} session={session} websiteSettings={websiteSettings}/>} {path === "/shop" && <Shop products={filtered} allProducts={products} filter={filter} setFilter={setFilter} sort={sort} setSort={setSort} openProduct={openProduct} add={add} wish={wishlist} toggleWish={toggleWish}/>} {selected && <Product product={selected} add={add} wished={wishlist.includes(selected.id)} toggleWish={toggleWish} go={go} session={session} websiteSettings={websiteSettings} socialProof={selectedSocialProof} onRatingUpdate={updateProductRating}/>} {path === "/cart" && <Cart cart={cart} go={go} session={session} websiteSettings={websiteSettings} clearCart={()=>setCart([])}/>} {path === "/wishlist" && <SimpleList title="Your wishlist" products={products.filter(p=>wishlist.includes(p.id))} openProduct={openProduct}/>} {path === "/orders" && <CustomerOrders session={session} go={go}/>} {path === "/account" && (session ? <CustomerAccount session={session} go={go}/> : <AuthScreen go={go} mode="customer" redirectTo="/account"/>)} {path === "/order-success" && <OrderSuccess session={session} go={go}/>} {path === "/reviews" && <LiveReviews session={session} go={go}/>} {path === "/login" && <AuthScreen go={go} mode="customer"/>} {path === "/story" && <Story go={go}/>}
+    <Footer go={go} websiteSettings={websiteSettings}/><StoreActivityToast products={products} proof={productSocialProof}/><a className="floating-whatsapp" href={`https://wa.me/${whatsappDigits(websiteSettings.whatsapp)}?text=Hi%20Techora%2C%20I%20need%20help%20with%20a%20product.`} target="_blank" rel="noreferrer" aria-label="Chat with Techora on WhatsApp"><Icon name="whatsapp"/></a>
     <AnimatePresence>{flying && <motion.img className="fly-to-cart" src={flying.product.image} alt="" initial={{opacity:1,scale:1,x:0,y:0}} animate={{opacity:.15,scale:.2,x:flying.dx,y:flying.dy}} transition={{duration:.55}} style={{left:flying.x,top:flying.y}} onAnimationComplete={() => setFlying(null)}/>}</AnimatePresence><AnimatePresence>{toast && <motion.div className="toast" initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} exit={{opacity:0,y:10}}>{toast}</motion.div>}</AnimatePresence>
   </div>;
 }
@@ -288,10 +342,13 @@ function ProductShelf({eyebrow,title,products,go,openProduct,add,wish,toggleWish
   const discount=Number(product.discount||0); const isSoldOut=Number(product.stock)<=0; const badge=discount>0?`${discount}% OFF`:index<2?"BEST SELLER":"NEW";
   const currentRating = Number(product.rating || getStoredProductRating(product.id) || 0);
   const roundedRating = Math.round(currentRating);
-  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}><button className={`product-image${isSoldOut?" is-sold-out":""}`} onClick={()=>openProduct(product)} aria-label={isSoldOut?`${product.name}, sold out`:`View ${product.name}`}><img src={product.image} alt={product.name}/>{!isSoldOut&&<span className="product-badge">{badge}</span>}{isSoldOut&&<span className="unavailable">SOLD OUT</span>}</button><button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button><div className="product-info"><p>{product.category}</p><button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button><div className="product-rating-row"><span className="rating-stars" aria-label="Product rating">{currentRating>0 ? "★".repeat(roundedRating) + "☆".repeat(5-roundedRating) : "☆☆☆☆☆"}</span><small>{currentRating>0 ? `${currentRating}/5` : "Not yet rated"}</small></div><div>{discount > 0 ? <span className="discount-price"><del>{money(originalPrice(product))}</del><strong>{money(product.price)}</strong><em>{discount}% off</em></span> : <strong>{money(product.price)}</strong>}<button disabled={isSoldOut} onClick={e=>add(product,e)} aria-label={isSoldOut?`${product.name} is sold out`:`Add ${product.name} to bag`}><Icon name="bag"/></button></div></div></motion.article>;
+  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}><button className={`product-image${isSoldOut?" is-sold-out":""}`} onClick={()=>openProduct(product)} aria-label={isSoldOut?`${product.name}, sold out`:`View ${product.name}`}><img src={product.image} alt={product.name}/>{!isSoldOut&&<span className="product-badge">{badge}</span>}{isSoldOut&&<span className="unavailable">SOLD OUT</span>}</button><button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button><div className="product-info"><p>{product.category}</p><button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button><div className="product-rating-row"><span className="rating-stars" aria-label="Product rating">{currentRating>0 ? "★".repeat(roundedRating) + "☆".repeat(5-roundedRating) : "☆☆☆☆☆"}</span><small>{currentRating>0 ? `${currentRating}/5` : "Not yet rated"}</small></div><div className="product-offer-row"><div className="product-price-card"><span>PRICE</span>{discount > 0 ? <span className="discount-price"><del>{money(originalPrice(product))}</del><strong>{money(product.price)}</strong><em>{discount}% off</em></span> : <strong>{money(product.price)}</strong>}</div><button disabled={isSoldOut} onClick={e=>add(product,e)} aria-label={isSoldOut?`${product.name} is sold out`:`Add ${product.name} to bag`}><Icon name="bag"/></button></div></div></motion.article>;
 }
-function Product({product,add,wished,toggleWish,go,session,websiteSettings,onRatingUpdate}) {
+function Product({product,add,wished,toggleWish,go,session,websiteSettings,socialProof,onRatingUpdate}) {
   const isSoldOut = Number(product.stock) <= 0;
+  const stockCount = Math.max(0, Math.floor(Number(product.stock) || 0));
+  const viewedCount = Number(socialProof?.unique_visitors_30d) || 0;
+  const soldCount = Number(socialProof?.units_sold_30d) || 0;
   const gallery = [...new Set([product.image, ...(product.gallery || [])].filter(Boolean))];
   const colors = Array.isArray(product.colors) ? product.colors : [];
   const [currentImage, setCurrentImage] = useState(gallery[0]);
@@ -315,10 +372,10 @@ function Product({product,add,wished,toggleWish,go,session,websiteSettings,onRat
       </div>
       <div className="product-detail-copy">
         <p className="eyebrow">{product.category}</p><h1>{product.name}</h1>
-        <div className="detail-price">{Number(product.discount || 0) > 0 && <del>{money(originalPrice(product))}</del>}<strong>{money(product.price)}</strong>{Number(product.discount || 0) > 0 && <span>{product.discount}% off</span>}</div>
+        <div className="product-detail-metrics"><div className="detail-price-card"><small>PRICE</small>{Number(product.discount || 0) > 0 && <del>{money(originalPrice(product))}</del>}<strong>{money(product.price)}</strong>{Number(product.discount || 0) > 0 && <span>{product.discount}% off</span>}</div><div className={`detail-stock-card${isSoldOut ? " sold-out" : stockCount <= 5 ? " low-stock" : ""}`}><small>STOCK LEFT</small><strong>{stockCount}</strong><span>{isSoldOut ? "Sold out" : stockCount <= 5 ? "Running low" : "Available"}</span></div></div>
+        {(viewedCount > 0 || soldCount > 0) && <div className="product-activity-proof">{viewedCount > 0 && <span><strong>{viewedCount}</strong> visitors viewed this product in the last 30 days</span>}{soldCount > 0 && <span><strong>{soldCount}</strong> units sold in the last 30 days</span>}</div>}
         <p>{product.description}</p>
         {colors.length > 0 && <fieldset className="colour-picker"><legend>Choose colour <strong>{selectedColor}</strong></legend><div>{colors.map(color=><button type="button" key={color.name} className={selectedColor===color.name?"active":""} onClick={()=>chooseColor(color)} aria-label={"Choose " + color.name} aria-pressed={selectedColor===color.name}><span style={{backgroundColor:color.hex || "#ddd"}}/><small>{color.name}</small></button>)}</div></fieldset>}
-        <p className={isSoldOut?"stock-state sold-out":"stock-state"}>{isSoldOut?"Sold out":"In stock — ready to order"}</p>
         <div className="detail-actions"><button className="button button-ink" disabled={isSoldOut} onClick={e=>add(configuredProduct,e)}>Add to cart <Icon name="bag"/></button><button className="button" onClick={()=>toggleWish(product)}>{wished?"Saved to wishlist":"Add to wishlist"} <Icon name="heart"/></button></div>
         <button className="order-now" disabled={isSoldOut} onClick={()=>session ? setOrdering(true) : go("/login")}>Order now <Icon name="arrow"/></button>
         <div className="detail-note"><strong>Delivery:</strong> Nationwide dispatch with tracking updates.<br/><strong>Returns:</strong> Contact us within 7 days for eligible returns.<br/>Free shipping over PKR 5,000 · WhatsApp assistance</div>

@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from "../lib/supabase";
 import PaymentSettingsAdmin from "./PaymentSettingsAdmin";
 import WebsiteSettingsAdmin from "./WebsiteSettingsAdmin";
 import SalesAnalytics from "./SalesAnalytics";
+import StoreAnalytics from "./StoreAnalytics";
 import { fallbackProducts } from "../data/catalog";
 
 const cloudinaryUploadsEnabled = import.meta.env.VITE_CLOUDINARY_ENABLED === "true";
@@ -24,7 +25,7 @@ const getPaymentProof = (order) => Array.isArray(order?.order_payment_proofs) ? 
 export default function AdminDashboard({ session, go }) {
   const [tab, setTab] = useState("orders");
   const [role, setRole] = useState("");
-  const [data, setData] = useState({ orders: [], products: [], reviews: [], admins: [] });
+  const [data, setData] = useState({ orders: [], products: [], reviews: [], admins: [], analytics: [], analyticsReady: false });
   const [orderFilter, setOrderFilter] = useState("all");
   const [orderSearch, setOrderSearch] = useState("");
   const [form, setForm] = useState(emptyProduct);
@@ -52,12 +53,14 @@ export default function AdminDashboard({ session, go }) {
       if (rawDelReviews) deletedRevIds = new Set(JSON.parse(rawDelReviews));
     } catch (e) {}
 
-    const [profile, orders, products, reviewsRes, admins] = await Promise.all([
+    const analyticsSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const [profile, orders, products, reviewsRes, admins, analyticsRes] = await Promise.all([
       supabase.from("profiles").select("role").eq("id", session.user.id).single(),
       supabase.from("orders").select("*, order_items(*), order_payment_proofs(*)").order("created_at", { ascending: false }),
       supabase.from("products").select("*").order("created_at", { ascending: false }),
       supabase.from("reviews").select("*").order("created_at", { ascending: false }),
       supabase.from("profiles").select("id,full_name,email,role").eq("role", "admin").order("email"),
+      supabase.from("site_analytics").select("session_id,event_type,path,product_id,product_name,created_at").gte("created_at", analyticsSince).order("created_at", { ascending: false }).limit(5000),
     ]);
     const rootAdmin = session.user.email?.toLowerCase() === "techorapakistan@gmail.com";
     setRole(profile.data?.role || (rootAdmin ? "admin" : "customer"));
@@ -195,7 +198,7 @@ export default function AdminDashboard({ session, go }) {
 
     const firstError = profile.error || orders.error || products.error || admins.error;
     if (firstError) setMessage(firstError.message);
-    setData({ orders: orderList, products: allProducts, reviews: mergedReviews, admins: admins.data || [] });
+    setData({ orders: orderList, products: allProducts, reviews: mergedReviews, admins: admins.data || [], analytics: analyticsRes.data || [], analyticsReady: !analyticsRes.error });
   };
   useEffect(() => { load(); }, [session]);
   const updateOrder = async (id, status) => {
@@ -506,7 +509,7 @@ export default function AdminDashboard({ session, go }) {
   if (!isSupabaseConfigured) return <main className="auth-page"><section className="auth-card"><h1>Connect <em>Supabase.</em></h1><p>Add Supabase environment values to enable the admin dashboard.</p></section></main>;
   if (role && role !== "admin") return <main className="auth-page"><section className="auth-card"><h1>Access <em>restricted.</em></h1><p>This account is not an approved Techora admin.</p><p className="auth-helper">Currently signed in as: <strong>{session.user.email}</strong></p><button className="button button-ink" onClick={signOut}>Sign out and switch account</button><button className="text-link" onClick={() => go("/")}>Back to store</button></section></main>;
   const pending = data.orders.filter((order) => order.status === "pending_payment").length;
-  return <main className="admin-shell"><aside className="admin-sidebar"><img src="/techora-favicon.png" alt="Techora" /><p>TECHORA ADMIN</p>{[["orders", "Orders", pending], ["products", "Products"], ["payments", "Payment details"], ["appearance", "Appearance"], ["website settings", "Website settings"], ["reviews", "Reviews"], ["admins", "Manage admins"]].map(([id, label, count]) => <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>{label}{count ? <b>{count}</b> : null}</button>)}<button className="admin-store-link" onClick={() => go("/")}>View storefront</button></aside><section className="admin-main"><header><div><p className="eyebrow">CONTROL CENTRE</p><h1>{tab === "payments" ? "Payment details" : tab === "admins" ? "Manage admins" : tab === "appearance" ? "Appearance" : tab[0].toUpperCase() + tab.slice(1)}</h1></div><div className="admin-user"><span>{session.user.email}</span><button onClick={signOut}>Sign out</button></div></header>{message && <p className="admin-message" role="status">{message}</p>}{tab === "orders" && (() => {
+  return <main className="admin-shell"><aside className="admin-sidebar"><img src="/techora-favicon.png" alt="Techora" /><p>TECHORA ADMIN</p>{[["orders", "Orders", pending], ["analytics", "Visitors & sales"], ["products", "Products"], ["payments", "Payment details"], ["appearance", "Appearance"], ["website settings", "Website settings"], ["reviews", "Reviews"], ["admins", "Manage admins"]].map(([id, label, count]) => <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>{label}{count ? <b>{count}</b> : null}</button>)}<button className="admin-store-link" onClick={() => go("/")}>View storefront</button></aside><section className="admin-main"><header><div><p className="eyebrow">CONTROL CENTRE</p><h1>{tab === "payments" ? "Payment details" : tab === "admins" ? "Manage admins" : tab === "appearance" ? "Appearance" : tab === "analytics" ? "Visitors & sales" : tab[0].toUpperCase() + tab.slice(1)}</h1></div><div className="admin-user"><span>{session.user.email}</span><button onClick={signOut}>Sign out</button></div></header>{message && <p className="admin-message" role="status">{message}</p>}{tab === "orders" && (() => {
     const totalOrders = data.orders.length;
     const pendingOrders = data.orders.filter(o => o.status === "pending_payment").length;
     const completedOrders = data.orders.filter(o => o.status === "completed").length;
@@ -726,12 +729,13 @@ export default function AdminDashboard({ session, go }) {
     <div className="admin-product-list">
       {data.products.map((product) => <article key={product.id}>
         <img src={product.image_url} alt="" />
-        <div><strong>{product.name}</strong><span>PKR {Number(product.price).toLocaleString()} · Stock {product.stock}</span>{Number(product.discount) > 0 && <em>{product.discount}% discount</em>}{Number(product.stock) === 0 && <em className="unavailable-admin">Unavailable</em>}</div>
+        <div className="admin-product-copy"><strong>{product.name}</strong><span>{product.category || "Uncategorized"}</span><div className="admin-product-metrics"><div className="admin-product-price-card"><small>PRICE</small><strong>PKR {Number(product.price).toLocaleString()}</strong>{Number(product.discount) > 0 && <em>{product.discount}% discount</em>}</div><div className={`admin-product-stock-card${Number(product.stock) <= 5 ? " low-stock" : ""}`}><small>STOCK LEFT</small><strong>{Number(product.stock) || 0}</strong><span>{Number(product.stock) === 0 ? "Sold out" : Number(product.stock) <= 5 ? "Running low" : "Available"}</span></div></div>{Number(product.stock) === 0 && <em className="unavailable-admin">Unavailable</em>}</div>
         <button type="button" aria-label={"Edit " + product.name} onClick={() => editProduct(product)}>Edit</button>
         <button type="button" className="danger" onClick={() => deleteProduct(product.id)}>Delete</button>
       </article>)}
     </div>
   </div>}
+  {tab === "analytics" && <StoreAnalytics events={data.analytics} orders={data.orders} ready={data.analyticsReady} onRefresh={load}/>}
   {formOpen && createPortal(
     <div className="product-editor-backdrop" role="presentation">
       <form ref={productFormRef} className="admin-product-form product-editor-dialog" onSubmit={saveProduct} role="dialog" aria-modal="true" aria-labelledby="product-editor-title">
