@@ -338,11 +338,45 @@ function ProductShelf({eyebrow,title,products,go,openProduct,add,wish,toggleWish
   });
   const cats=["All",...uniqueCategories.values()];
   return <main className="page-shell"><div className="breadcrumb">Home <span>/</span> Shop</div><div className="page-heading"><div><p className="eyebrow">SHOP TECHORA</p><h1>The complete <em>edit.</em></h1></div><p>Devices and accessories selected for everyday life.</p></div><div className="shop-layout"><aside className={`shop-sidebar${categoryMenuOpen?" is-open":""}`}><button type="button" className="shop-category-toggle" aria-expanded={categoryMenuOpen} onClick={()=>setCategoryMenuOpen(open=>!open)}><span className="shop-category-menu-icon" aria-hidden="true">☰</span><span><small>Browse category</small><strong>{filter==="All"?"All products":filter}</strong></span><span className="shop-category-chevron" aria-hidden="true">⌄</span></button><div className="shop-category-list"><p className="filter-label">Category</p>{cats.map(cat=><button type="button" className={filter===cat?"active":""} onClick={()=>{setFilter(cat);setCategoryMenuOpen(false);}} key={cat}>{cat}</button>)}</div></aside><section className="shop-results"><div className="results-top"><span>{products.length} products</span><label>Sort <select value={sort} onChange={e=>setSort(e.target.value)}><option>Featured</option><option>Price: low to high</option><option>Price: high to low</option></select></label></div><div className="products-grid">{products.map((p,i)=><ProductCard key={p.id} product={p} index={i} openProduct={openProduct} add={add} wished={wish.includes(p.id)} toggleWish={toggleWish}/>)}</div></section></div></main>;
-}function ProductCard({product,index,openProduct,add,wished,toggleWish}) {
-  const discount=Number(product.discount||0); const isSoldOut=Number(product.stock)<=0; const badge=discount>0?`${discount}% OFF`:index<2?"BEST SELLER":"NEW";
+}
+function ProductCard({product,index,openProduct,add,wished,toggleWish}) {
+  const discount=Number(product.discount||0);
+  const stock=Number(product.stock);
+  const hasStock=product.stock !== null && product.stock !== undefined && product.stock !== "" && Number.isFinite(stock);
+  const isSoldOut=hasStock && stock<=0;
+  const badge=discount>0?`${discount}% OFF`:index<2?"BEST SELLER":"NEW";
   const currentRating = Number(product.rating || getStoredProductRating(product.id) || 0);
   const roundedRating = Math.round(currentRating);
-  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}><button className={`product-image${isSoldOut?" is-sold-out":""}`} onClick={()=>openProduct(product)} aria-label={isSoldOut?`${product.name}, sold out`:`View ${product.name}`}><img src={product.image} alt={product.name}/>{!isSoldOut&&<span className="product-badge">{badge}</span>}{isSoldOut&&<span className="unavailable">SOLD OUT</span>}</button><button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button><div className="product-info"><p>{product.category}</p><button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button><div className="product-rating-row"><span className="rating-stars" aria-label="Product rating">{currentRating>0 ? "★".repeat(roundedRating) + "☆".repeat(5-roundedRating) : "☆☆☆☆☆"}</span><small>{currentRating>0 ? `${currentRating}/5` : "Not yet rated"}</small></div><div className="product-offer-row"><div className="product-price-card"><span>PRICE</span>{discount > 0 ? <span className="discount-price"><del>{money(originalPrice(product))}</del><strong>{money(product.price)}</strong><em>{discount}% off</em></span> : <strong>{money(product.price)}</strong>}</div><button disabled={isSoldOut} onClick={e=>add(product,e)} aria-label={isSoldOut?`${product.name} is sold out`:`Add ${product.name} to bag`}><Icon name="bag"/></button></div></div></motion.article>;
+  const stockLabel = isSoldOut ? "Sold out" : hasStock && stock <= 5 ? `Only ${stock} left` : "In stock";
+
+  return <motion.article className="product-card clickable-card" initial={{opacity:0,y:14}} whileInView={{opacity:1,y:0}} viewport={{once:true}} transition={{delay:index*.04}}>
+    <button className={`product-image${isSoldOut?" is-sold-out":""}`} onClick={()=>openProduct(product)} aria-label={isSoldOut?`${product.name}, sold out`:`View ${product.name}`}>
+      <img src={product.image} alt={product.name}/>
+      {!isSoldOut&&<span className="product-badge">{badge}</span>}
+      {isSoldOut&&<span className="unavailable">SOLD OUT</span>}
+    </button>
+    <button className={wished?"wish active":"wish"} onClick={()=>toggleWish(product)} aria-label="Add to wishlist"><Icon name="heart"/></button>
+    <div className="product-info">
+      <p>{product.category}</p>
+      <button className="product-name" onClick={()=>openProduct(product)}>{product.name}</button>
+      <div className="product-rating-row">
+        <span className="rating-stars" aria-label="Product rating">{currentRating>0 ? "★".repeat(roundedRating) + "☆".repeat(5-roundedRating) : "☆☆☆☆☆"}</span>
+        <small>{currentRating>0 ? `${currentRating}/5` : "Not yet rated"}</small>
+      </div>
+      <div className="product-offer-row">
+        <div className="product-price-block">
+          {discount > 0 && <span className="product-price-discount"><del>{money(originalPrice(product))}</del><em>{discount}% off</em></span>}
+          <strong className="product-price-current">{money(product.price)}</strong>
+        </div>
+        <button disabled={isSoldOut} onClick={e=>add(product,e)} aria-label={isSoldOut?`${product.name} is sold out`:`Add ${product.name} to bag`}>
+          <Icon name="bag"/><span>Add</span>
+        </button>
+      </div>
+      <div className={`product-stock-note${isSoldOut?" is-sold-out":hasStock && stock<=5?" is-low-stock":""}`}>
+        <span aria-hidden="true"/>{stockLabel}
+      </div>
+    </div>
+  </motion.article>;
 }
 function Product({product,add,wished,toggleWish,go,session,websiteSettings,socialProof,onRatingUpdate}) {
   const isSoldOut = Number(product.stock) <= 0;

@@ -2071,3 +2071,23 @@ body{background:var(--paper);color:var(--ink)}.topline{background:var(--navy);co
 .order-success-totals b{color:var(--ink)}
 .order-pay-now-label{display:block;margin-top:4px;color:#69809a;font-size:9px;font-weight:500}
 @media(max-width:600px){.customer-order-breakdown{grid-template-columns:1fr 1fr;padding:10px}.order-success-totals{padding:10px 14px}}
+
+/* Product prices stay consistent and contained in the responsive product card. */
+.product-info .product-offer-row{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center!important;gap:7px;border-top:1px solid #edf2f8;padding-top:10px;margin-top:10px!important}
+.product-price-block{min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px}
+.product-price-current{display:block;max-width:100%;color:#0757ac!important;font-size:13px!important;font-weight:800!important;line-height:1.15;white-space:nowrap;font-variant-numeric:tabular-nums}
+.product-price-discount{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap;line-height:1}
+.product-price-discount del{color:#6d8098;font-size:9px;font-weight:500;white-space:nowrap}
+.product-price-discount em{font-size:8px;font-style:normal;font-weight:700;color:#b42349;background:#ffe8ee;border-radius:999px;padding:3px 5px;white-space:nowrap}
+.product-info .product-offer-row>button{width:auto;height:34px;min-width:52px;align-self:center;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;border:1px solid #071b37;border-radius:999px;background:#071b37;color:#fff;white-space:nowrap}
+.product-info .product-offer-row>button:after{content:none!important}
+.product-info .product-offer-row>button svg{width:14px;height:14px}
+.product-info .product-offer-row>button span{font-size:10px;font-weight:700;letter-spacing:.02em}
+.product-info .product-stock-note{display:flex;align-items:center;gap:7px;margin:8px 0 0!important;padding:0!important;border:0!important;color:#42617f;font-size:10px;font-weight:600;line-height:1.2}
+.product-stock-note>span{width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#1b9b68}
+.product-stock-note.is-low-stock{color:#a55b05}
+.product-stock-note.is-low-stock>span{background:#e79a22}
+.product-stock-note.is-sold-out{color:#b42349}
+.product-stock-note.is-sold-out>span{background:#d6455d}
+.catalog-marquee-group small{color:#0757ac!important;font-weight:800}
+@media(max-width:600px){.product-info .product-offer-row{gap:6px}.product-price-current{font-size:12px!important}.product-price-discount{gap:4px}.product-price-discount del{font-size:8px}.product-price-discount em{font-size:7px;padding:3px 4px}.product-info .product-offer-row>button{min-width:48px;height:30px;padding:0 7px;gap:4px}.product-info .product-offer-row>button span{font-size:9px}.product-info .product-stock-note{font-size:9px;margin-top:7px!important}}
